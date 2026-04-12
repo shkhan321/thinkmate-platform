@@ -1,0 +1,2303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThinkMate | AI-Powered Socratic Tutoring Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --uaeu-blue: #003F72;
+            --section-blue: #00508C;
+            --accent: #2E8BC0;
+            --accent-light: #4DA8DA;
+            --light-bg: #F0F4F8;
+            --lighter-bg: #F7F9FC;
+            --white: #FFFFFF;
+            --text: #1A1A2E;
+            --text-light: #4A5568;
+            --text-muted: #718096;
+            --gold: #C9A23C;
+            --gold-light: #E8D48B;
+            --success: #38A169;
+            --success-light: #C6F6D5;
+            --warning: #D69E2E;
+            --warning-light: #FEFCBF;
+            --danger: #E53E3E;
+            --danger-light: #FED7D7;
+            --info: #3182CE;
+            --info-light: #BEE3F8;
+            --border: #E2E8F0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 14px rgba(0,0,0,0.08);
+            --shadow-lg: 0 10px 30px rgba(0,0,0,0.1);
+            --shadow-xl: 0 20px 60px rgba(0,0,0,0.12);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --bloom-remember: #9F7AEA;
+            --bloom-understand: #4299E1;
+            --bloom-apply: #38B2AC;
+            --bloom-analyze: #ECC94B;
+            --bloom-evaluate: #ED8936;
+            --bloom-create: #E53E3E;
+            --icap-passive: #A0AEC0;
+            --icap-active: #4299E1;
+            --icap-constructive: #38A169;
+            --icap-interactive: #9F7AEA;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            background: var(--lighter-bg);
+            overflow-x: hidden;
+        }
+        code, pre { font-family: 'JetBrains Mono', monospace; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideInLeft { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes typing { from { width: 0; } to { width: 100%; } }
+        @keyframes blink { 0%, 100% { border-color: transparent; } 50% { border-color: var(--accent); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes dotPulse { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        .slide-up { animation: slideUp 0.5s ease-out; }
+
+        /* Typography helpers */
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-base { font-size: 1rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .text-3xl { font-size: 1.875rem; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+
+        /* Loading dots */
+        .loading-dots { display: inline-flex; gap: 4px; align-items: center; }
+        .loading-dots span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: dotPulse 1.4s infinite ease-in-out both; }
+        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        /* Utility */
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } = React;
+
+    // ============================================================================
+    // CONSTANTS & DATA
+    // ============================================================================
+    const BLOOM_LEVELS = [
+        { key: 'remember', label: 'Remember', color: '#9F7AEA', icon: '1' },
+        { key: 'understand', label: 'Understand', color: '#4299E1', icon: '2' },
+        { key: 'apply', label: 'Apply', color: '#38B2AC', icon: '3' },
+        { key: 'analyze', label: 'Analyze', color: '#ECC94B', icon: '4' },
+        { key: 'evaluate', label: 'Evaluate', color: '#ED8936', icon: '5' },
+        { key: 'create', label: 'Create', color: '#E53E3E', icon: '6' },
+    ];
+
+    const PAUL_ELDER_STANDARDS = [
+        'Clarity', 'Accuracy', 'Precision', 'Relevance', 'Depth',
+        'Breadth', 'Logic', 'Significance', 'Fairness'
+    ];
+
+    const ICAP_LEVELS = [
+        { key: 'passive', label: 'Passive', color: '#A0AEC0', desc: 'Receiving information without processing' },
+        { key: 'active', label: 'Active', color: '#4299E1', desc: 'Attending and selecting relevant info' },
+        { key: 'constructive', label: 'Constructive', color: '#38A169', desc: 'Generating new meaning beyond given' },
+        { key: 'interactive', label: 'Interactive', color: '#9F7AEA', desc: 'Co-creating through dialogue exchange' },
+    ];
+
+    const SOCRATIC_MOVES = [
+        { key: 'clarification', label: 'Clarification Request', icon: 'Q', desc: 'Ask student to clarify their claim' },
+        { key: 'evidence', label: 'Evidence Probe', icon: 'E', desc: 'Request supporting evidence' },
+        { key: 'assumption', label: 'Assumption Probe', icon: 'A', desc: 'Challenge hidden assumptions' },
+        { key: 'counterview', label: 'Counterview Challenge', icon: 'C', desc: 'Present alternative perspectives' },
+        { key: 'synthesis', label: 'Synthesis Prompt', icon: 'S', desc: 'Connect ideas across domains' },
+        { key: 'reflection', label: 'Reflection Cue', icon: 'R', desc: 'Prompt metacognitive reflection' },
+    ];
+
+    const USERS = {
+        student1: { id: 's1', name: 'Sara Alsaedi', role: 'student', course: 'engineering', avatar: 'SA', gpa: 3.02, major: 'Mechanical/Aerospace Engineering' },
+        student2: { id: 's2', name: 'Wadima Aldhaheri', role: 'student', course: 'engineering', avatar: 'WA', gpa: 3.17, major: 'Mechanical/Aerospace Engineering' },
+        student3: { id: 's3', name: 'Laiya Jamsheer', role: 'student', course: 'psychology', avatar: 'LJ', gpa: 4.0, major: 'Psychology' },
+        student4: { id: 's4', name: 'Salma Alhashmi', role: 'student', course: 'psychology', avatar: 'SH', gpa: 3.62, major: 'Psychology' },
+        student5: { id: 's5', name: 'Madni Khan', role: 'student', course: 'engineering', avatar: 'MK', gpa: 4.0, major: 'Mechanical Engineering (Graduate)' },
+        instructor1: { id: 'i1', name: 'Dr. Sanan Khan', role: 'instructor', department: 'Mechanical & Aerospace Engineering', avatar: 'SK' },
+        instructor2: { id: 'i2', name: 'Dr. Mariana Coutinho', role: 'instructor', department: 'Cognitive Sciences', avatar: 'MC' },
+        admin: { id: 'a1', name: 'System Admin', role: 'admin', avatar: 'AD' },
+    };
+
+    const COURSES = {
+        engineering: {
+            id: 'engineering',
+            code: 'AERO 590 / MECH 590',
+            name: 'Capstone Engineering Design Project',
+            college: 'College of Engineering',
+            instructor: 'Dr. Sanan Khan',
+            students: 42,
+            color: '#2E8BC0',
+            topics: [
+                'Structural Analysis & Failure Modes',
+                'Design Optimization Under Constraints',
+                'Material Selection & Trade-offs',
+                'Systems Integration & Testing',
+                'Engineering Ethics & Safety',
+            ]
+        },
+        psychology: {
+            id: 'psychology',
+            code: 'PSYC 485',
+            name: 'Integrated Capstone',
+            college: 'College of Humanities & Social Sciences',
+            instructor: 'Dr. Mariana Coutinho',
+            students: 38,
+            color: '#9F7AEA',
+            topics: [
+                'Metacognition & Self-Assessment',
+                'Cognitive Biases in Decision Making',
+                'Research Design & Methodology',
+                'Theory Application & Critique',
+                'Ethical Reasoning in Psychology',
+            ]
+        }
+    };
+
+    // Simulated dialogue scenarios
+    const DIALOGUE_SCENARIOS = {
+        engineering: [
+            {
+                topic: 'Bridge Failure Analysis',
+                task: 'Explain why the I-35W Mississippi River bridge collapsed in 2007.',
+                dialogues: [
+                    { role: 'student', text: 'The bridge failed because the material was weak.', bloom: 'remember', icap: 'passive' },
+                    { role: 'tutor', text: 'What evidence allows you to separate material weakness from loading or design assumptions?', move: 'evidence', bloom: 'analyze', standard: 'Accuracy', safeguard: true },
+                    { role: 'student', text: 'I assumed the load was constant, so I focused on the steel itself.', bloom: 'understand', icap: 'active' },
+                    { role: 'tutor', text: 'What assumption are you making about the loading history, and how might cyclic loading change your explanation?', move: 'assumption', bloom: 'analyze', standard: 'Depth', safeguard: true },
+                    { role: 'student', text: 'If the load was cyclic, fatigue may be more relevant than static strength. The gusset plates could have experienced repeated stress cycles over decades.', bloom: 'analyze', icap: 'constructive' },
+                    { role: 'tutor', text: 'Which explanation is better supported now, and what additional data would help you justify that judgement?', move: 'synthesis', bloom: 'evaluate', standard: 'Logic', safeguard: true },
+                    { role: 'student', text: 'I would need stress-cycle data and fracture evidence to justify fatigue as the stronger explanation. The NTSB report showed the gusset plates were under-designed from the start, but accumulated loading worsened the situation.', bloom: 'evaluate', icap: 'interactive' },
+                    { role: 'tutor', text: 'Excellent reasoning. Now reflect: how has your understanding of the failure mechanism evolved from your initial claim? What did the Socratic process reveal about your initial reasoning?', move: 'reflection', bloom: 'evaluate', standard: 'Fairness', safeguard: true },
+                ]
+            },
+            {
+                topic: 'Material Selection Trade-offs',
+                task: 'Justify your material choice for a high-temperature turbine blade.',
+                dialogues: [
+                    { role: 'student', text: 'I chose titanium because it is strong and lightweight.', bloom: 'remember', icap: 'passive' },
+                    { role: 'tutor', text: 'You mention strength and weight. At what temperature range will this blade operate, and how does titanium perform under those conditions?', move: 'clarification', bloom: 'understand', standard: 'Precision', safeguard: true },
+                    { role: 'student', text: 'The turbine operates at around 1000-1200 degrees Celsius. Titanium might not handle that well.', bloom: 'understand', icap: 'active' },
+                    { role: 'tutor', text: 'What happens to titanium alloys above 600 degrees Celsius, and what material class is typically used for this temperature regime?', move: 'evidence', bloom: 'analyze', standard: 'Accuracy', safeguard: true },
+                    { role: 'student', text: 'Titanium alloys lose their creep resistance above 600C. Nickel-based superalloys like Inconel are typically used because they maintain strength at high temperatures through gamma-prime precipitation hardening.', bloom: 'analyze', icap: 'constructive' },
+                    { role: 'tutor', text: 'Good. Now consider: what trade-offs does the switch from titanium to nickel superalloy introduce for the overall engine design?', move: 'counterview', bloom: 'evaluate', standard: 'Breadth', safeguard: true },
+                ]
+            }
+        ],
+        psychology: [
+            {
+                topic: 'Dunning-Kruger Effect Analysis',
+                task: 'Explain why low performers often overestimate their abilities.',
+                dialogues: [
+                    { role: 'student', text: 'People who are bad at things think they are good because they are ignorant.', bloom: 'remember', icap: 'passive' },
+                    { role: 'tutor', text: 'What specific cognitive mechanism prevents low performers from recognizing their own limitations? Is ignorance itself sufficient as an explanation?', move: 'clarification', bloom: 'understand', standard: 'Clarity', safeguard: true },
+                    { role: 'student', text: 'They lack metacognitive skills. They cannot evaluate their own performance accurately because the same skills needed to perform well are also needed to judge performance.', bloom: 'understand', icap: 'active' },
+                    { role: 'tutor', text: 'That connects to Kruger and Dunning\'s dual-burden account. But what does Coutinho et al. (2024) add about the confidence of low performers in their inaccurate self-estimates?', move: 'evidence', bloom: 'analyze', standard: 'Depth', safeguard: true },
+                    { role: 'student', text: 'Coutinho et al. found that low performers are not just miscalibrated, but they are highly confident even in the inaccuracy of their self-estimates. This is a second-order miscalibration, they are confident they are right about being right.', bloom: 'analyze', icap: 'constructive' },
+                    { role: 'tutor', text: 'How might this second-order overconfidence affect an intervention designed to improve self-assessment? What challenge does it create?', move: 'counterview', bloom: 'evaluate', standard: 'Logic', safeguard: true },
+                    { role: 'student', text: 'It makes simple feedback insufficient. If students are confident in their wrong self-assessments, just telling them they are wrong might not work because they will dismiss the feedback. You would need to create situations where their errors become undeniable, perhaps through structured comparison tasks.', bloom: 'evaluate', icap: 'interactive' },
+                    { role: 'tutor', text: 'Strong analysis. Reflect on how your own understanding evolved: you started with ignorance as the explanation, and now you see a more nuanced metacognitive mechanism. What does this progression reveal about the role of probing questions in learning?', move: 'reflection', bloom: 'evaluate', standard: 'Significance', safeguard: true },
+                ]
+            },
+            {
+                topic: 'Cognitive Bias in Research',
+                task: 'Analyze how confirmation bias might affect a psychology research study.',
+                dialogues: [
+                    { role: 'student', text: 'Confirmation bias means researchers only see what they want to see in their data.', bloom: 'remember', icap: 'passive' },
+                    { role: 'tutor', text: 'That captures the general idea. At which specific stages of the research process can confirmation bias operate, beyond just data interpretation?', move: 'clarification', bloom: 'analyze', standard: 'Breadth', safeguard: true },
+                    { role: 'student', text: 'It can affect hypothesis formation, how you design your study to favor certain outcomes, which participants you select, how you code qualitative data, and which results you choose to report.', bloom: 'analyze', icap: 'constructive' },
+                    { role: 'tutor', text: 'Excellent breadth. Now pick one stage and explain a specific methodological safeguard that mitigates confirmation bias at that stage.', move: 'evidence', bloom: 'evaluate', standard: 'Precision', safeguard: true },
+                ]
+            }
+        ]
+    };
+
+    // Generate simulated analytics data
+    function generateAnalytics() {
+        const students = Object.values(USERS).filter(u => u.role === 'student');
+        return students.map(s => ({
+            ...s,
+            sessions: Math.floor(Math.random() * 12) + 3,
+            avgBloom: (Math.random() * 2 + 2.5).toFixed(1),
+            avgICAP: ['active', 'constructive', 'interactive'][Math.floor(Math.random() * 3)],
+            totalTurns: Math.floor(Math.random() * 80) + 20,
+            completionRate: (Math.random() * 30 + 70).toFixed(0),
+            susScore: Math.floor(Math.random() * 25 + 65),
+            fidelity: (Math.random() * 15 + 85).toFixed(1),
+            rubricScore: (Math.random() * 2 + 2.5).toFixed(1),
+            timeOnTask: Math.floor(Math.random() * 40 + 15),
+            lastActive: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        }));
+    }
+
+    // ============================================================================
+    // CONTEXT
+    // ============================================================================
+    const AppContext = createContext();
+
+    // ============================================================================
+    // ICONS (SVG inline)
+    // ============================================================================
+    const Icons = {
+        brain: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 0 1 5 5c0 .9-.3 1.7-.7 2.4"/><path d="M17 7a5 5 0 0 1-2.8 8.8"/><path d="M12 22v-6"/><path d="M7.5 7A5 5 0 0 0 12 12"/><circle cx="12" cy="12" r="3"/><path d="M6.3 17.7A5 5 0 0 1 7 7"/><path d="M17.7 17.7A5 5 0 0 0 17 7"/></svg>,
+        chat: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+        dashboard: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+        users: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+        chart: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+        settings: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+        logout: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+        send: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+        book: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+        shield: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+        check: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+        x: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+        chevronRight: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+        clock: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+        target: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+        layers: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+        activity: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+        fileText: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
+        award: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
+        info: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
+        menu: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+        play: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+        home: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+        compass: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>,
+        zap: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+    };
+
+    // ============================================================================
+    // LOGIN PAGE
+    // ============================================================================
+    function LoginPage({ onLogin }) {
+        const [selectedUser, setSelectedUser] = useState(null);
+        const [showCustom, setShowCustom] = useState(false);
+        const [customName, setCustomName] = useState('');
+        const [customRole, setCustomRole] = useState('student');
+
+        const userGroups = {
+            'Students': Object.entries(USERS).filter(([,u]) => u.role === 'student'),
+            'Instructors': Object.entries(USERS).filter(([,u]) => u.role === 'instructor'),
+            'Admin': Object.entries(USERS).filter(([,u]) => u.role === 'admin'),
+        };
+
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(135deg, #003F72 0%, #00508C 40%, #2E8BC0 80%, #4DA8DA 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '2rem',
+                backgroundSize: '200% 200%',
+                animation: 'gradientShift 8s ease infinite',
+            }}>
+                <div style={{
+                    background: 'white', borderRadius: '24px', padding: '3rem',
+                    maxWidth: '520px', width: '100%',
+                    boxShadow: '0 25px 80px rgba(0,0,0,0.3)',
+                    animation: 'slideUp 0.6s ease-out',
+                }}>
+                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                        <div style={{
+                            width: 72, height: 72, borderRadius: '20px',
+                            background: 'linear-gradient(135deg, var(--uaeu-blue), var(--accent))',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 1rem', color: 'white', fontSize: '1.8rem', fontWeight: 800,
+                        }}>TM</div>
+                        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--uaeu-blue)', letterSpacing: '-0.5px' }}>
+                            Think<span style={{ color: 'var(--gold)' }}>Mate</span>
+                        </h1>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                            AI-Powered Socratic Tutoring Platform
+                        </p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
+                            UAE University | CETL Innovation Project
+                        </p>
+                    </div>
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        {Object.entries(userGroups).map(([group, users]) => (
+                            <div key={group} style={{ marginBottom: '1rem' }}>
+                                <div style={{
+                                    fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase',
+                                    color: 'var(--text-muted)', letterSpacing: '1px', marginBottom: '0.5rem',
+                                    paddingLeft: '0.25rem',
+                                }}>{group}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    {users.map(([key, user]) => (
+                                        <button key={key} onClick={() => { setSelectedUser(key); setShowCustom(false); }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                                padding: '0.65rem 0.85rem', borderRadius: '10px',
+                                                border: selectedUser === key ? '2px solid var(--accent)' : '2px solid var(--border)',
+                                                background: selectedUser === key ? 'var(--info-light)' : 'white',
+                                                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                                                width: '100%', fontSize: '0.9rem',
+                                            }}>
+                                            <div style={{
+                                                width: 36, height: 36, borderRadius: '10px',
+                                                background: user.role === 'admin' ? 'var(--danger)' : user.role === 'instructor' ? 'var(--gold)' : 'var(--accent)',
+                                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontWeight: 700, fontSize: '0.75rem', flexShrink: 0,
+                                            }}>{user.avatar}</div>
+                                            <div>
+                                                <div style={{ fontWeight: 600, color: 'var(--text)' }}>{user.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                    {user.role === 'student' ? user.major : user.role === 'instructor' ? user.department : 'System Administrator'}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button onClick={() => selectedUser && onLogin(USERS[selectedUser])}
+                        disabled={!selectedUser}
+                        style={{
+                            width: '100%', padding: '0.85rem',
+                            background: selectedUser ? 'linear-gradient(135deg, var(--uaeu-blue), var(--accent))' : 'var(--border)',
+                            color: selectedUser ? 'white' : 'var(--text-muted)',
+                            border: 'none', borderRadius: '12px',
+                            fontSize: '0.95rem', fontWeight: 600,
+                            cursor: selectedUser ? 'pointer' : 'not-allowed',
+                            transition: 'all 0.2s',
+                            boxShadow: selectedUser ? '0 4px 15px rgba(0,63,114,0.3)' : 'none',
+                        }}>
+                        Sign In to ThinkMate
+                    </button>
+
+                    <div style={{ textAlign: 'center', marginTop: '1.5rem', padding: '0.75rem', background: 'var(--light-bg)', borderRadius: '10px' }}>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                            Pilot Platform | May - December 2026<br/>
+                            Dr. Sanan Khan (PI) | Dr. Mariana Coutinho (Co-PI)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // SIDEBAR
+    // ============================================================================
+    function Sidebar({ user, currentView, onNavigate, onLogout, collapsed, onToggle }) {
+        const studentNav = [
+            { id: 'student-home', label: 'Home', icon: Icons.home },
+            { id: 'student-dialogue', label: 'Socratic Tutor', icon: Icons.chat },
+            { id: 'student-progress', label: 'My Progress', icon: Icons.chart },
+            { id: 'student-sessions', label: 'Session History', icon: Icons.fileText },
+        ];
+
+        const instructorNav = [
+            { id: 'instructor-home', label: 'Dashboard', icon: Icons.dashboard },
+            { id: 'instructor-analytics', label: 'Analytics', icon: Icons.chart },
+            { id: 'instructor-students', label: 'Students', icon: Icons.users },
+            { id: 'instructor-dialogues', label: 'Dialogue Logs', icon: Icons.fileText },
+            { id: 'instructor-fidelity', label: 'Fidelity Monitor', icon: Icons.shield },
+            { id: 'instructor-rubric', label: 'Rubric Scores', icon: Icons.award },
+        ];
+
+        const adminNav = [
+            { id: 'admin-home', label: 'System Overview', icon: Icons.dashboard },
+            { id: 'admin-courses', label: 'Courses', icon: Icons.book },
+            { id: 'admin-users', label: 'Users', icon: Icons.users },
+            { id: 'admin-system', label: 'System Config', icon: Icons.settings },
+            { id: 'admin-architecture', label: 'Architecture', icon: Icons.layers },
+            { id: 'admin-research', label: 'Research Design', icon: Icons.compass },
+        ];
+
+        const navItems = user.role === 'admin' ? adminNav : user.role === 'instructor' ? instructorNav : studentNav;
+
+        return (
+            <div style={{
+                width: collapsed ? 72 : 260, minHeight: '100vh', background: 'var(--uaeu-blue)',
+                color: 'white', display: 'flex', flexDirection: 'column',
+                transition: 'width 0.25s ease', position: 'fixed', left: 0, top: 0, bottom: 0,
+                zIndex: 50, overflow: 'hidden',
+            }}>
+                <div style={{
+                    padding: collapsed ? '1.25rem 0.75rem' : '1.25rem 1.25rem',
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    borderBottom: '1px solid rgba(255,255,255,0.1)',
+                    minHeight: 64, justifyContent: collapsed ? 'center' : 'flex-start',
+                }}>
+                    <button onClick={onToggle} style={{
+                        background: 'none', border: 'none', color: 'white', cursor: 'pointer',
+                        display: 'flex', padding: '4px',
+                    }}><Icons.menu /></button>
+                    {!collapsed && (
+                        <span style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.5px', whiteSpace: 'nowrap' }}>
+                            Think<span style={{ color: 'var(--gold)' }}>Mate</span>
+                        </span>
+                    )}
+                </div>
+
+                <nav style={{ flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {navItems.map(item => {
+                        const active = currentView === item.id;
+                        const Icon = item.icon;
+                        return (
+                            <button key={item.id} onClick={() => onNavigate(item.id)}
+                                title={collapsed ? item.label : ''}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                    padding: collapsed ? '0.7rem' : '0.7rem 0.85rem',
+                                    borderRadius: '10px', border: 'none',
+                                    background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+                                    color: active ? 'white' : 'rgba(255,255,255,0.65)',
+                                    cursor: 'pointer', fontSize: '0.88rem', fontWeight: active ? 600 : 400,
+                                    transition: 'all 0.15s', width: '100%', textAlign: 'left',
+                                    justifyContent: collapsed ? 'center' : 'flex-start',
+                                    whiteSpace: 'nowrap',
+                                }}>
+                                <Icon />
+                                {!collapsed && item.label}
+                            </button>
+                        );
+                    })}
+                </nav>
+
+                <div style={{
+                    padding: collapsed ? '1rem 0.5rem' : '1rem 1.25rem',
+                    borderTop: '1px solid rgba(255,255,255,0.1)',
+                }}>
+                    {!collapsed && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                            <div style={{
+                                width: 32, height: 32, borderRadius: '8px',
+                                background: 'rgba(255,255,255,0.15)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.7rem', fontWeight: 700,
+                            }}>{user.avatar}</div>
+                            <div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.2 }}>{user.name}</div>
+                                <div style={{ fontSize: '0.65rem', opacity: 0.6, textTransform: 'capitalize' }}>{user.role}</div>
+                            </div>
+                        </div>
+                    )}
+                    <button onClick={onLogout} style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        padding: '0.5rem', borderRadius: '8px', border: 'none',
+                        background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)',
+                        cursor: 'pointer', fontSize: '0.8rem', width: '100%',
+                        justifyContent: collapsed ? 'center' : 'flex-start',
+                    }}>
+                        <Icons.logout />
+                        {!collapsed && 'Sign Out'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // BLOOM'S LEVEL INDICATOR
+    // ============================================================================
+    function BloomIndicator({ level, compact }) {
+        const idx = BLOOM_LEVELS.findIndex(b => b.key === level);
+        const bloom = BLOOM_LEVELS[idx] || BLOOM_LEVELS[0];
+        if (compact) {
+            return (
+                <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    padding: '2px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600,
+                    background: bloom.color + '22', color: bloom.color, border: `1px solid ${bloom.color}44`,
+                }}>{bloom.label}</span>
+            );
+        }
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Bloom's Level
+                </div>
+                <div style={{ display: 'flex', gap: '3px' }}>
+                    {BLOOM_LEVELS.map((b, i) => (
+                        <div key={b.key} style={{
+                            flex: 1, height: 6, borderRadius: 3,
+                            background: i <= idx ? b.color : 'var(--border)',
+                            transition: 'background 0.3s',
+                        }} title={b.label} />
+                    ))}
+                </div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: bloom.color }}>
+                    Level {idx + 1}: {bloom.label}
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // ICAP BADGE
+    // ============================================================================
+    function ICAPBadge({ level }) {
+        const icap = ICAP_LEVELS.find(i => i.key === level) || ICAP_LEVELS[0];
+        return (
+            <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                padding: '2px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600,
+                background: icap.color + '22', color: icap.color, border: `1px solid ${icap.color}44`,
+            }}>{icap.label}</span>
+        );
+    }
+
+    // ============================================================================
+    // SOCRATIC DIALOGUE INTERFACE
+    // ============================================================================
+    function SocraticDialogue({ user }) {
+        const [course] = useState(user.course || 'engineering');
+        const [selectedTopic, setSelectedTopic] = useState(0);
+        const [messages, setMessages] = useState([]);
+        const [input, setInput] = useState('');
+        const [isThinking, setIsThinking] = useState(false);
+        const [dialogueStep, setDialogueStep] = useState(0);
+        const [currentBloom, setCurrentBloom] = useState('remember');
+        const [currentICAP, setCurrentICAP] = useState('passive');
+        const [currentStandard, setCurrentStandard] = useState('Clarity');
+        const [currentMove, setCurrentMove] = useState(null);
+        const [safeguardLog, setSafeguardLog] = useState([]);
+        const [sessionActive, setSessionActive] = useState(false);
+        const [turnCount, setTurnCount] = useState(0);
+        const [sessionStartTime, setSessionStartTime] = useState(null);
+        const messagesEndRef = useRef(null);
+        const inputRef = useRef(null);
+
+        const scenario = DIALOGUE_SCENARIOS[course]?.[selectedTopic] || DIALOGUE_SCENARIOS.engineering[0];
+
+        useEffect(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, [messages]);
+
+        function startSession() {
+            setSessionActive(true);
+            setSessionStartTime(Date.now());
+            setMessages([{
+                role: 'system',
+                text: `Session started for: ${scenario.topic}`,
+                time: new Date().toLocaleTimeString(),
+            }, {
+                role: 'tutor',
+                text: `Welcome to your Socratic tutoring session. Today we'll explore: "${scenario.task}"\n\nPlease begin by sharing your initial understanding or position on this topic. Remember, there are no wrong starting points - the goal is to develop your reasoning through dialogue.`,
+                move: 'clarification',
+                bloom: 'remember',
+                standard: 'Clarity',
+                time: new Date().toLocaleTimeString(),
+                safeguard: true,
+            }]);
+            setDialogueStep(0);
+            setTurnCount(0);
+            setSafeguardLog([{ time: new Date().toLocaleTimeString(), status: 'pass', msg: 'Session initialized. Answer-leakage guard active.' }]);
+        }
+
+        function handleSend() {
+            if (!input.trim() || isThinking) return;
+            const userMsg = input.trim();
+            setInput('');
+
+            const step = Math.min(dialogueStep, scenario.dialogues.length - 1);
+            const studentData = scenario.dialogues.filter(d => d.role === 'student');
+            const tutorData = scenario.dialogues.filter(d => d.role === 'tutor');
+            const sIdx = Math.min(Math.floor(dialogueStep / 2), studentData.length - 1);
+            const tIdx = Math.min(Math.floor(dialogueStep / 2), tutorData.length - 1);
+
+            const studentRef = studentData[sIdx];
+            setCurrentBloom(studentRef?.bloom || 'understand');
+            setCurrentICAP(studentRef?.icap || 'active');
+
+            setMessages(prev => [...prev, {
+                role: 'student',
+                text: userMsg,
+                bloom: studentRef?.bloom || 'understand',
+                icap: studentRef?.icap || 'active',
+                time: new Date().toLocaleTimeString(),
+            }]);
+
+            setTurnCount(prev => prev + 1);
+            setIsThinking(true);
+
+            setTimeout(() => {
+                const tutorRef = tutorData[tIdx];
+                const moveLabel = tutorRef?.move || 'clarification';
+                const standard = tutorRef?.standard || 'Clarity';
+                const bloom = tutorRef?.bloom || 'analyze';
+                setCurrentMove(moveLabel);
+                setCurrentStandard(standard);
+                setCurrentBloom(bloom);
+
+                setSafeguardLog(prev => [...prev, {
+                    time: new Date().toLocaleTimeString(),
+                    status: 'pass',
+                    msg: `Turn ${turnCount + 1}: Move="${moveLabel}" | Standard="${standard}" | No answer leakage detected.`,
+                }]);
+
+                setMessages(prev => [...prev, {
+                    role: 'tutor',
+                    text: tutorRef?.text || "Can you elaborate on your reasoning? What evidence supports your position?",
+                    move: moveLabel,
+                    bloom: bloom,
+                    standard: standard,
+                    time: new Date().toLocaleTimeString(),
+                    safeguard: true,
+                }]);
+
+                setDialogueStep(prev => prev + 2);
+                setIsThinking(false);
+            }, 1500 + Math.random() * 1000);
+        }
+
+        return (
+            <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 100px)', animation: 'fadeIn 0.4s ease-out' }}>
+                {/* Main Dialogue Panel */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {/* Header */}
+                    <div style={{
+                        background: 'white', borderRadius: '16px', padding: '1.25rem 1.5rem',
+                        boxShadow: 'var(--shadow-sm)', marginBottom: '1rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    }}>
+                        <div>
+                            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--uaeu-blue)' }}>
+                                Socratic Tutoring Session
+                            </h2>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                {COURSES[course]?.code} | {scenario.topic}
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            {sessionActive && (
+                                <span style={{
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem',
+                                    background: 'var(--success-light)', color: 'var(--success)', fontWeight: 600,
+                                }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 2s infinite' }}></span>
+                                    Live Session
+                                </span>
+                            )}
+                            <select value={selectedTopic} onChange={e => { setSelectedTopic(+e.target.value); setSessionActive(false); setMessages([]); }}
+                                style={{
+                                    padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+                                    fontSize: '0.8rem', background: 'white', color: 'var(--text)',
+                                }}>
+                                {DIALOGUE_SCENARIOS[course]?.map((s, i) => (
+                                    <option key={i} value={i}>{s.topic}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Messages */}
+                    <div style={{
+                        flex: 1, background: 'white', borderRadius: '16px',
+                        boxShadow: 'var(--shadow-sm)', overflow: 'hidden',
+                        display: 'flex', flexDirection: 'column',
+                    }}>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+                            {!sessionActive ? (
+                                <div style={{
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                    justifyContent: 'center', height: '100%', gap: '1.5rem', padding: '2rem',
+                                }}>
+                                    <div style={{
+                                        width: 80, height: 80, borderRadius: '24px',
+                                        background: 'linear-gradient(135deg, var(--uaeu-blue), var(--accent))',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: 'white', fontSize: '2rem', fontWeight: 800,
+                                        boxShadow: '0 8px 25px rgba(0,63,114,0.3)',
+                                    }}>TM</div>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '0.5rem' }}>
+                                            Ready to Think Critically
+                                        </h3>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: 400, lineHeight: 1.7 }}>
+                                            This session will guide you through structured reasoning about <strong>{scenario.topic}</strong>.
+                                            ThinkMate will never give you the answer directly. Instead, it will help you discover insights through carefully crafted questions.
+                                        </p>
+                                    </div>
+                                    <div style={{
+                                        background: 'var(--light-bg)', borderRadius: '12px', padding: '1rem 1.5rem',
+                                        maxWidth: 420, width: '100%',
+                                    }}>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            Task
+                                        </div>
+                                        <p style={{ fontSize: '0.9rem', color: 'var(--text)', fontWeight: 500 }}>{scenario.task}</p>
+                                    </div>
+                                    <button onClick={startSession} style={{
+                                        padding: '0.75rem 2.5rem', borderRadius: '12px', border: 'none',
+                                        background: 'linear-gradient(135deg, var(--uaeu-blue), var(--accent))',
+                                        color: 'white', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
+                                        boxShadow: '0 4px 15px rgba(0,63,114,0.3)', transition: 'transform 0.15s',
+                                    }}>
+                                        Begin Session
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    {messages.map((msg, i) => (
+                                        <div key={i} style={{
+                                            marginBottom: '1rem',
+                                            display: 'flex',
+                                            justifyContent: msg.role === 'student' ? 'flex-end' : msg.role === 'system' ? 'center' : 'flex-start',
+                                            animation: 'fadeIn 0.3s ease-out',
+                                        }}>
+                                            {msg.role === 'system' ? (
+                                                <div style={{
+                                                    padding: '0.35rem 1rem', borderRadius: '20px',
+                                                    background: 'var(--light-bg)', fontSize: '0.75rem',
+                                                    color: 'var(--text-muted)', fontWeight: 500,
+                                                }}>{msg.text}</div>
+                                            ) : (
+                                                <div style={{
+                                                    maxWidth: '75%', padding: '1rem 1.25rem', borderRadius: '16px',
+                                                    background: msg.role === 'student' ? 'var(--uaeu-blue)' : 'var(--light-bg)',
+                                                    color: msg.role === 'student' ? 'white' : 'var(--text)',
+                                                    borderBottomRightRadius: msg.role === 'student' ? '4px' : '16px',
+                                                    borderBottomLeftRadius: msg.role === 'tutor' ? '4px' : '16px',
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+                                                            opacity: msg.role === 'student' ? 0.7 : 1,
+                                                            color: msg.role === 'tutor' ? 'var(--accent)' : 'inherit',
+                                                        }}>
+                                                            {msg.role === 'student' ? 'You' : 'ThinkMate'}
+                                                        </span>
+                                                        {msg.move && (
+                                                            <span style={{
+                                                                fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px',
+                                                                background: 'var(--accent)', color: 'white', fontWeight: 600,
+                                                            }}>{SOCRATIC_MOVES.find(m => m.key === msg.move)?.label || msg.move}</span>
+                                                        )}
+                                                        {msg.standard && (
+                                                            <span style={{
+                                                                fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px',
+                                                                background: 'var(--gold)', color: 'var(--uaeu-blue)', fontWeight: 600,
+                                                            }}>PE: {msg.standard}</span>
+                                                        )}
+                                                        {msg.safeguard && (
+                                                            <span style={{ color: 'var(--success)', display: 'flex' }} title="Safeguard: No answer leakage">
+                                                                <Icons.shield />
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p style={{ fontSize: '0.9rem', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                                                    <div style={{
+                                                        display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem',
+                                                        opacity: 0.6, fontSize: '0.7rem',
+                                                    }}>
+                                                        <span>{msg.time}</span>
+                                                        {msg.bloom && <BloomIndicator level={msg.bloom} compact />}
+                                                        {msg.icap && <ICAPBadge level={msg.icap} />}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {isThinking && (
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.5rem', animation: 'fadeIn 0.3s' }}>
+                                            <div style={{
+                                                padding: '0.75rem 1.25rem', borderRadius: '16px', borderBottomLeftRadius: '4px',
+                                                background: 'var(--light-bg)',
+                                            }}>
+                                                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>ThinkMate is analyzing...</div>
+                                                <div className="loading-dots">
+                                                    <span></span><span></span><span></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </>
+                            )}
+                        </div>
+
+                        {/* Input */}
+                        {sessionActive && (
+                            <div style={{
+                                padding: '1rem 1.5rem', borderTop: '1px solid var(--border)',
+                                background: 'var(--lighter-bg)',
+                            }}>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <input ref={inputRef} value={input}
+                                        onChange={e => setInput(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleSend()}
+                                        placeholder="Share your reasoning..."
+                                        style={{
+                                            flex: 1, padding: '0.75rem 1rem', borderRadius: '12px',
+                                            border: '2px solid var(--border)', fontSize: '0.9rem',
+                                            outline: 'none', transition: 'border-color 0.15s',
+                                        }}
+                                        onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                                        onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                                    />
+                                    <button onClick={handleSend} disabled={!input.trim() || isThinking}
+                                        style={{
+                                            padding: '0.75rem', borderRadius: '12px', border: 'none',
+                                            background: input.trim() ? 'var(--uaeu-blue)' : 'var(--border)',
+                                            color: 'white', cursor: input.trim() ? 'pointer' : 'not-allowed',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            transition: 'background 0.15s',
+                                        }}>
+                                        <Icons.send />
+                                    </button>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    <span>Turn {turnCount + 1} | ThinkMate never provides direct answers</span>
+                                    <span>{Icons.clock()} {sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 60000) + ' min' : ''}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Panel - Session Metadata */}
+                <div style={{ width: 320, display: 'flex', flexDirection: 'column', gap: '1rem', flexShrink: 0 }}>
+                    {/* Bloom's Level */}
+                    <div style={{
+                        background: 'white', borderRadius: '16px', padding: '1.25rem',
+                        boxShadow: 'var(--shadow-sm)',
+                    }}>
+                        <BloomIndicator level={currentBloom} />
+                    </div>
+
+                    {/* ICAP State */}
+                    <div style={{
+                        background: 'white', borderRadius: '16px', padding: '1.25rem',
+                        boxShadow: 'var(--shadow-sm)',
+                    }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>
+                            ICAP Engagement
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            {ICAP_LEVELS.map(level => (
+                                <div key={level.key} style={{
+                                    flex: 1, padding: '0.5rem 0.25rem', borderRadius: '8px', textAlign: 'center',
+                                    background: currentICAP === level.key ? level.color + '22' : 'var(--light-bg)',
+                                    border: currentICAP === level.key ? `2px solid ${level.color}` : '2px solid transparent',
+                                    transition: 'all 0.3s',
+                                }}>
+                                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: currentICAP === level.key ? level.color : 'var(--text-muted)' }}>
+                                        {level.label[0]}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500, marginTop: '0.5rem' }}>
+                            {ICAP_LEVELS.find(i => i.key === currentICAP)?.desc}
+                        </div>
+                    </div>
+
+                    {/* Current Move */}
+                    <div style={{
+                        background: 'white', borderRadius: '16px', padding: '1.25rem',
+                        boxShadow: 'var(--shadow-sm)',
+                    }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>
+                            Pedagogical Move
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                            {SOCRATIC_MOVES.map(move => (
+                                <div key={move.key} style={{
+                                    padding: '0.35rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem',
+                                    fontWeight: currentMove === move.key ? 600 : 400,
+                                    background: currentMove === move.key ? 'var(--accent)' + '22' : 'transparent',
+                                    color: currentMove === move.key ? 'var(--accent)' : 'var(--text-muted)',
+                                    border: currentMove === move.key ? `1px solid var(--accent)` : '1px solid transparent',
+                                    transition: 'all 0.2s',
+                                }}>{move.label}</div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Paul-Elder Standard */}
+                    <div style={{
+                        background: 'white', borderRadius: '16px', padding: '1.25rem',
+                        boxShadow: 'var(--shadow-sm)',
+                    }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>
+                            Paul-Elder Standard
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {PAUL_ELDER_STANDARDS.map(s => (
+                                <span key={s} style={{
+                                    padding: '2px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 500,
+                                    background: currentStandard === s ? 'var(--gold)' : 'var(--light-bg)',
+                                    color: currentStandard === s ? 'var(--uaeu-blue)' : 'var(--text-muted)',
+                                    transition: 'all 0.2s',
+                                }}>{s}</span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Safeguard Log */}
+                    <div style={{
+                        background: 'white', borderRadius: '16px', padding: '1.25rem',
+                        boxShadow: 'var(--shadow-sm)', flex: 1, overflow: 'hidden',
+                        display: 'flex', flexDirection: 'column',
+                    }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem',
+                        }}>
+                            <Icons.shield />
+                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Safeguard Log
+                            </span>
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.72rem' }}>
+                            {safeguardLog.map((log, i) => (
+                                <div key={i} style={{
+                                    padding: '0.35rem 0', borderBottom: '1px solid var(--light-bg)',
+                                    display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
+                                }}>
+                                    <span style={{ color: log.status === 'pass' ? 'var(--success)' : 'var(--danger)', flexShrink: 0 }}>
+                                        {log.status === 'pass' ? <Icons.check /> : <Icons.x />}
+                                    </span>
+                                    <div>
+                                        <div style={{ color: 'var(--text-light)' }}>{log.msg}</div>
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{log.time}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // STAT CARD
+    // ============================================================================
+    function StatCard({ label, value, sub, color, icon }) {
+        const Icon = icon;
+        return (
+            <div style={{
+                background: 'white', borderRadius: '16px', padding: '1.25rem',
+                boxShadow: 'var(--shadow-sm)', display: 'flex', gap: '1rem', alignItems: 'center',
+            }}>
+                <div style={{
+                    width: 48, height: 48, borderRadius: '14px',
+                    background: (color || 'var(--accent)') + '18',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: color || 'var(--accent)', flexShrink: 0,
+                }}>{Icon && <Icon />}</div>
+                <div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1.1 }}>{value}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>{label}</div>
+                    {sub && <div style={{ fontSize: '0.7rem', color: color || 'var(--success)', fontWeight: 600, marginTop: '2px' }}>{sub}</div>}
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // STUDENT HOME
+    // ============================================================================
+    function StudentHome({ user, onNavigate }) {
+        const course = COURSES[user.course || 'engineering'];
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <div style={{ marginBottom: '2rem' }}>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--uaeu-blue)' }}>
+                        Welcome back, {user.name.split(' ')[0]}
+                    </h1>
+                    <p style={{ color: 'var(--text-muted)' }}>{course.code} | {course.name}</p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    <StatCard label="Sessions" value="7" sub="+2 this week" color="var(--accent)" icon={Icons.chat} />
+                    <StatCard label="Avg Bloom's" value="4.2" sub="Analyze level" color="var(--bloom-analyze)" icon={Icons.layers} />
+                    <StatCard label="ICAP Level" value="C" sub="Constructive" color="var(--icap-constructive)" icon={Icons.activity} />
+                    <StatCard label="Time on Task" value="2.4h" sub="Total study time" color="var(--gold)" icon={Icons.clock} />
+                </div>
+
+                {/* Quick Start */}
+                <div style={{
+                    background: 'linear-gradient(135deg, var(--uaeu-blue), var(--accent))',
+                    borderRadius: '20px', padding: '2rem', color: 'white', marginBottom: '2rem',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                    <div>
+                        <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.5rem' }}>Continue Your Learning</h2>
+                        <p style={{ opacity: 0.85, fontSize: '0.9rem', maxWidth: 500 }}>
+                            Start a new Socratic dialogue session. ThinkMate will guide your critical thinking through structured questioning without ever giving you the answer directly.
+                        </p>
+                    </div>
+                    <button onClick={() => onNavigate('student-dialogue')} style={{
+                        padding: '0.85rem 2rem', borderRadius: '12px', border: '2px solid rgba(255,255,255,0.3)',
+                        background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: '0.95rem',
+                        fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                        backdropFilter: 'blur(10px)', transition: 'all 0.2s',
+                    }}>Start Session</button>
+                </div>
+
+                {/* Available Topics */}
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Available Topics</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        {DIALOGUE_SCENARIOS[user.course || 'engineering']?.map((s, i) => (
+                            <div key={i} onClick={() => onNavigate('student-dialogue')} style={{
+                                padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)',
+                                cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            }}>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>{s.topic}</div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{s.task.substring(0, 60)}...</div>
+                                </div>
+                                <Icons.chevronRight />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // STUDENT PROGRESS
+    // ============================================================================
+    function StudentProgress({ user }) {
+        const bloomData = [
+            { level: 'Remember', count: 3, pct: 10 },
+            { level: 'Understand', count: 8, pct: 25 },
+            { level: 'Apply', count: 6, pct: 18 },
+            { level: 'Analyze', count: 10, pct: 32 },
+            { level: 'Evaluate', count: 4, pct: 12 },
+            { level: 'Create', count: 1, pct: 3 },
+        ];
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>My Progress</h1>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    <StatCard label="Total Sessions" value="7" color="var(--accent)" icon={Icons.chat} />
+                    <StatCard label="Total Turns" value="42" color="var(--uaeu-blue)" icon={Icons.activity} />
+                    <StatCard label="Avg Bloom's" value="3.8" color="var(--bloom-analyze)" icon={Icons.layers} />
+                    <StatCard label="SUS Score" value="78" sub="Above average" color="var(--success)" icon={Icons.award} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                    {/* Bloom's Distribution */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Bloom's Level Distribution</h3>
+                        {bloomData.map((b, i) => (
+                            <div key={i} style={{ marginBottom: '0.75rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                                    <span style={{ fontWeight: 500 }}>{b.level}</span>
+                                    <span style={{ color: 'var(--text-muted)' }}>{b.pct}%</span>
+                                </div>
+                                <div style={{ height: 8, borderRadius: 4, background: 'var(--light-bg)' }}>
+                                    <div style={{
+                                        height: '100%', borderRadius: 4, width: `${b.pct}%`,
+                                        background: BLOOM_LEVELS[i]?.color,
+                                        transition: 'width 1s ease-out',
+                                    }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* ICAP Engagement */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>ICAP Engagement Over Time</h3>
+                        {ICAP_LEVELS.map((level, i) => {
+                            const pcts = [15, 30, 35, 20];
+                            return (
+                                <div key={i} style={{ marginBottom: '0.75rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: 500 }}>{level.label}</span>
+                                        <span style={{ color: 'var(--text-muted)' }}>{pcts[i]}%</span>
+                                    </div>
+                                    <div style={{ height: 8, borderRadius: 4, background: 'var(--light-bg)' }}>
+                                        <div style={{ height: '100%', borderRadius: 4, width: `${pcts[i]}%`, background: level.color, transition: 'width 1s ease-out' }} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Paul-Elder Standards */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', gridColumn: 'span 2' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Paul-Elder Standards Addressed</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                            {PAUL_ELDER_STANDARDS.map((s, i) => {
+                                const score = Math.floor(Math.random() * 40 + 60);
+                                return (
+                                    <div key={s} style={{
+                                        padding: '0.75rem', borderRadius: '10px', border: '1px solid var(--border)',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    }}>
+                                        <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>{s}</span>
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                                            background: score >= 80 ? 'var(--success-light)' : score >= 60 ? 'var(--warning-light)' : 'var(--danger-light)',
+                                            color: score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)',
+                                        }}>{score}%</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // SESSION HISTORY
+    // ============================================================================
+    function SessionHistory({ user }) {
+        const sessions = [
+            { id: 1, topic: 'Bridge Failure Analysis', date: '2026-10-15', turns: 8, bloomAvg: 'Analyze', icap: 'Constructive', duration: '18 min', fidelity: '100%' },
+            { id: 2, topic: 'Material Selection Trade-offs', date: '2026-10-13', turns: 6, bloomAvg: 'Evaluate', icap: 'Interactive', duration: '22 min', fidelity: '100%' },
+            { id: 3, topic: 'Design Optimization', date: '2026-10-10', turns: 10, bloomAvg: 'Apply', icap: 'Active', duration: '15 min', fidelity: '95%' },
+            { id: 4, topic: 'Systems Integration', date: '2026-10-08', turns: 5, bloomAvg: 'Understand', icap: 'Active', duration: '12 min', fidelity: '100%' },
+        ];
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>Session History</h1>
+                <div style={{ background: 'white', borderRadius: '16px', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--light-bg)' }}>
+                                {['Topic', 'Date', 'Turns', 'Bloom Avg', 'ICAP', 'Duration', 'Fidelity'].map(h => (
+                                    <th key={h} style={{ padding: '0.85rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sessions.map(s => (
+                                <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '0.85rem 1rem', fontWeight: 500 }}>{s.topic}</td>
+                                    <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)' }}>{s.date}</td>
+                                    <td style={{ padding: '0.85rem 1rem' }}>{s.turns}</td>
+                                    <td style={{ padding: '0.85rem 1rem' }}><BloomIndicator level={s.bloomAvg.toLowerCase()} compact /></td>
+                                    <td style={{ padding: '0.85rem 1rem' }}><ICAPBadge level={s.icap.toLowerCase()} /></td>
+                                    <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)' }}>{s.duration}</td>
+                                    <td style={{ padding: '0.85rem 1rem' }}>
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                                            background: 'var(--success-light)', color: 'var(--success)',
+                                        }}>{s.fidelity}</span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // INSTRUCTOR DASHBOARD
+    // ============================================================================
+    function InstructorDashboard({ user }) {
+        const analytics = useMemo(() => generateAnalytics(), []);
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <div style={{ marginBottom: '2rem' }}>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--uaeu-blue)' }}>Instructor Dashboard</h1>
+                    <p style={{ color: 'var(--text-muted)' }}>ThinkMate Pilot Overview | Fall 2026</p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    <StatCard label="Total Students" value="80" color="var(--accent)" icon={Icons.users} />
+                    <StatCard label="Active Sessions" value="42" sub="+8 today" color="var(--success)" icon={Icons.activity} />
+                    <StatCard label="Avg Bloom's" value="3.6" sub="Analyze level" color="var(--bloom-analyze)" icon={Icons.layers} />
+                    <StatCard label="Safeguard Fidelity" value="94%" sub="No leakage" color="var(--success)" icon={Icons.shield} />
+                    <StatCard label="Avg SUS Score" value="74" sub="Above threshold" color="var(--gold)" icon={Icons.award} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                    {/* Course Comparison */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Course Comparison</h3>
+                        {Object.values(COURSES).map(course => (
+                            <div key={course.id} style={{
+                                padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)',
+                                marginBottom: '0.75rem',
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{course.code}</div>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{course.name}</div>
+                                    </div>
+                                    <div style={{
+                                        padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600,
+                                        background: course.color + '22', color: course.color,
+                                    }}>{course.students} students</div>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', fontSize: '0.78rem' }}>
+                                    <div><span style={{ color: 'var(--text-muted)' }}>Avg Bloom:</span> <strong>3.{Math.floor(Math.random()*5+3)}</strong></div>
+                                    <div><span style={{ color: 'var(--text-muted)' }}>Fidelity:</span> <strong>{Math.floor(Math.random()*10+88)}%</strong></div>
+                                    <div><span style={{ color: 'var(--text-muted)' }}>SUS:</span> <strong>{Math.floor(Math.random()*15+68)}</strong></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Crossover Design Status */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Pilot Crossover Design</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div style={{ padding: '1rem', borderRadius: '12px', background: 'var(--accent)' + '12', border: '1px solid var(--accent)' + '44', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sequence A</div>
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                                    <div style={{ fontWeight: 500 }}>Task 1: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>ThinkMate</span></div>
+                                    <div style={{ fontWeight: 500, marginTop: '2px' }}>Task 2: <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Guided Worksheet</span></div>
+                                </div>
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>40 students</div>
+                            </div>
+                            <div style={{ padding: '1rem', borderRadius: '12px', background: 'var(--gold)' + '12', border: '1px solid var(--gold)' + '44', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sequence B</div>
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                                    <div style={{ fontWeight: 500 }}>Task 1: <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Guided Worksheet</span></div>
+                                    <div style={{ fontWeight: 500, marginTop: '2px' }}>Task 2: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>ThinkMate</span></div>
+                                </div>
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>40 students</div>
+                            </div>
+                        </div>
+                        <div style={{ marginTop: '1rem', padding: '0.75rem', borderRadius: '8px', background: 'var(--light-bg)', fontSize: '0.78rem', color: 'var(--text-light)' }}>
+                            <strong>Primary outcome:</strong> Reasoning quality on course artifacts, blinded scoring by 2 raters using Paul-Elder rubric. Target ICC &ge; 0.70. Min effect d = 0.30.
+                        </div>
+                    </div>
+                </div>
+
+                {/* Outcome Interpretation Matrix */}
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Outcome Interpretation Matrix</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+                        {[
+                            { pattern: 'Feasible + Positive (d >= 0.30)', interp: 'System ready for confirmatory study', decision: 'Scale cautiously', color: 'var(--success)' },
+                            { pattern: 'Feasible + Near Zero', interp: 'Usable but insufficient educational value', decision: 'Redesign prompts/tasks', color: 'var(--warning)' },
+                            { pattern: 'Mixed Across Courses', interp: 'Boundary conditions exist', decision: 'Narrow scope', color: 'var(--info)' },
+                            { pattern: 'Low Feasibility', interp: 'Operational weakness is the blocker', decision: 'Stop scale-up', color: 'var(--danger)' },
+                        ].map((row, i) => (
+                            <div key={i} style={{
+                                padding: '1rem', borderRadius: '12px', borderLeft: `4px solid ${row.color}`,
+                                background: 'var(--lighter-bg)',
+                            }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: row.color, marginBottom: '0.35rem' }}>{row.pattern}</div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: '0.35rem' }}>{row.interp}</div>
+                                <div style={{
+                                    fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: '4px',
+                                    background: row.color + '22', color: row.color, display: 'inline-block',
+                                }}>{row.decision}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // INSTRUCTOR ANALYTICS
+    // ============================================================================
+    function InstructorAnalytics() {
+        const canvasRef1 = useRef(null);
+        const canvasRef2 = useRef(null);
+        const canvasRef3 = useRef(null);
+
+        useEffect(() => {
+            // Bloom's distribution chart
+            if (canvasRef1.current) {
+                const ctx = canvasRef1.current.getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: BLOOM_LEVELS.map(b => b.label),
+                        datasets: [{
+                            label: 'Engineering',
+                            data: [8, 15, 18, 28, 22, 9],
+                            backgroundColor: '#2E8BC0',
+                            borderRadius: 6,
+                        }, {
+                            label: 'Psychology',
+                            data: [5, 12, 20, 30, 25, 8],
+                            backgroundColor: '#9F7AEA',
+                            borderRadius: 6,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: { y: { beginAtZero: true, title: { display: true, text: '% of Turns' } } },
+                    }
+                });
+            }
+            // ICAP engagement chart
+            if (canvasRef2.current) {
+                const ctx = canvasRef2.current.getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ICAP_LEVELS.map(i => i.label),
+                        datasets: [{
+                            data: [12, 28, 38, 22],
+                            backgroundColor: ICAP_LEVELS.map(i => i.color),
+                            borderWidth: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        cutout: '65%',
+                    }
+                });
+            }
+            // Session trend chart
+            if (canvasRef3.current) {
+                const ctx = canvasRef3.current.getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'],
+                        datasets: [{
+                            label: 'Avg Bloom Level',
+                            data: [2.1, 2.5, 3.0, 3.4, 3.6, 3.9],
+                            borderColor: '#2E8BC0',
+                            backgroundColor: '#2E8BC022',
+                            fill: true, tension: 0.4,
+                        }, {
+                            label: 'Safeguard Fidelity %',
+                            data: [88, 91, 93, 94, 96, 94],
+                            borderColor: '#38A169',
+                            backgroundColor: '#38A16922',
+                            fill: true, tension: 0.4,
+                            yAxisID: 'y1',
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: {
+                            y: { beginAtZero: true, max: 6, title: { display: true, text: 'Bloom Level' } },
+                            y1: { position: 'right', min: 80, max: 100, title: { display: true, text: 'Fidelity %' }, grid: { display: false } },
+                        },
+                    }
+                });
+            }
+        }, []);
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>Analytics Dashboard</h1>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Bloom's Level Distribution by Course</h3>
+                        <div style={{ height: 280 }}><canvas ref={canvasRef1}></canvas></div>
+                    </div>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>ICAP Engagement Distribution</h3>
+                        <div style={{ height: 280 }}><canvas ref={canvasRef2}></canvas></div>
+                    </div>
+                </div>
+
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Progress Over Time</h3>
+                    <div style={{ height: 300 }}><canvas ref={canvasRef3}></canvas></div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // INSTRUCTOR STUDENTS VIEW
+    // ============================================================================
+    function InstructorStudents() {
+        const analytics = useMemo(() => generateAnalytics(), []);
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>Student Overview</h1>
+                <div style={{ background: 'white', borderRadius: '16px', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--light-bg)' }}>
+                                {['Student', 'Course', 'Sessions', 'Avg Bloom', 'ICAP', 'Fidelity', 'SUS', 'Rubric', 'Last Active'].map(h => (
+                                    <th key={h} style={{ padding: '0.75rem 0.85rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {analytics.map((s, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div style={{
+                                                width: 30, height: 30, borderRadius: '8px',
+                                                background: 'var(--accent)', color: 'white',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '0.65rem', fontWeight: 700,
+                                            }}>{s.avatar}</div>
+                                            <div>
+                                                <div style={{ fontWeight: 500 }}>{s.name}</div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{s.major?.substring(0, 25)}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}>
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600,
+                                            background: s.course === 'engineering' ? '#2E8BC022' : '#9F7AEA22',
+                                            color: s.course === 'engineering' ? '#2E8BC0' : '#9F7AEA',
+                                        }}>{s.course === 'engineering' ? 'ENG' : 'PSY'}</span>
+                                    </td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}>{s.sessions}</td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}><BloomIndicator level={parseFloat(s.avgBloom) >= 4 ? 'evaluate' : parseFloat(s.avgBloom) >= 3 ? 'analyze' : 'apply'} compact /></td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}><ICAPBadge level={s.avgICAP} /></td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}>
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600,
+                                            background: parseFloat(s.fidelity) >= 85 ? 'var(--success-light)' : 'var(--warning-light)',
+                                            color: parseFloat(s.fidelity) >= 85 ? 'var(--success)' : 'var(--warning)',
+                                        }}>{s.fidelity}%</span>
+                                    </td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}>{s.susScore}</td>
+                                    <td style={{ padding: '0.75rem 0.85rem' }}>{s.rubricScore}/5</td>
+                                    <td style={{ padding: '0.75rem 0.85rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>{s.lastActive}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // DIALOGUE LOGS (INSTRUCTOR)
+    // ============================================================================
+    function DialogueLogs() {
+        const [selectedSession, setSelectedSession] = useState(null);
+        const allScenarios = [...DIALOGUE_SCENARIOS.engineering, ...DIALOGUE_SCENARIOS.psychology];
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>Dialogue Log Viewer</h1>
+                <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '1.5rem' }}>
+                    {/* Session List */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', paddingLeft: '0.5rem' }}>Recent Sessions</div>
+                        {allScenarios.map((s, i) => (
+                            <button key={i} onClick={() => setSelectedSession(i)}
+                                style={{
+                                    display: 'block', width: '100%', textAlign: 'left',
+                                    padding: '0.75rem', borderRadius: '10px', border: 'none',
+                                    background: selectedSession === i ? 'var(--info-light)' : 'transparent',
+                                    cursor: 'pointer', marginBottom: '2px', transition: 'background 0.15s',
+                                }}>
+                                <div style={{ fontWeight: 500, fontSize: '0.85rem' }}>{s.topic}</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {s.dialogues.length} turns | {s.dialogues.filter(d => d.safeguard).length} safeguard checks
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Session Detail */}
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        {selectedSession !== null ? (
+                            <>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '0.25rem' }}>
+                                    {allScenarios[selectedSession].topic}
+                                </h3>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{allScenarios[selectedSession].task}</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {allScenarios[selectedSession].dialogues.map((d, i) => (
+                                        <div key={i} style={{
+                                            padding: '0.75rem 1rem', borderRadius: '10px',
+                                            background: d.role === 'student' ? 'var(--light-bg)' : 'white',
+                                            border: '1px solid var(--border)',
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: d.role === 'tutor' ? 'var(--accent)' : 'var(--uaeu-blue)', textTransform: 'uppercase' }}>
+                                                    {d.role === 'tutor' ? 'ThinkMate' : 'Student'}
+                                                </span>
+                                                {d.move && <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--accent)', color: 'white', fontWeight: 600 }}>{d.move}</span>}
+                                                {d.standard && <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--gold)', color: 'var(--uaeu-blue)', fontWeight: 600 }}>PE: {d.standard}</span>}
+                                                {d.bloom && <BloomIndicator level={d.bloom} compact />}
+                                                {d.icap && <ICAPBadge level={d.icap} />}
+                                                {d.safeguard && <span style={{ color: 'var(--success)', fontSize: '0.65rem', fontWeight: 600 }}>SAFE</span>}
+                                            </div>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--text)' }}>{d.text}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                Select a session to view the dialogue log
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // FIDELITY MONITOR
+    // ============================================================================
+    function FidelityMonitor() {
+        const checks = [
+            { id: 1, time: '14:32:05', student: 'Sara Alsaedi', move: 'Evidence Probe', standard: 'Accuracy', status: 'pass', detail: 'No answer leakage. Response correctly withholds direct solution.' },
+            { id: 2, time: '14:28:12', student: 'Laiya Jamsheer', move: 'Assumption Probe', standard: 'Depth', status: 'pass', detail: 'Challenge framing appropriate. No premature closure.' },
+            { id: 3, time: '14:25:45', student: 'Wadima Aldhaheri', move: 'Counterview', standard: 'Breadth', status: 'pass', detail: 'Alternative perspective presented without revealing preferred answer.' },
+            { id: 4, time: '14:20:33', student: 'Salma Alhashmi', move: 'Reflection Cue', standard: 'Logic', status: 'pass', detail: 'Metacognitive prompt aligned with session progression.' },
+            { id: 5, time: '14:15:18', student: 'Madni Khan', move: 'Synthesis', standard: 'Significance', status: 'warning', detail: 'Response nearly reveals solution pathway. Template fallback activated.' },
+            { id: 6, time: '14:10:02', student: 'Sara Alsaedi', move: 'Clarification', standard: 'Clarity', status: 'pass', detail: 'Appropriate clarification without directional hinting.' },
+        ];
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '0.5rem' }}>Safeguard Fidelity Monitor</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                    Real-time monitoring of answer-leakage detection and pedagogical move fidelity
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    <StatCard label="Total Checks" value="1,247" color="var(--accent)" icon={Icons.shield} />
+                    <StatCard label="Pass Rate" value="94.2%" sub="Target: >85%" color="var(--success)" icon={Icons.check} />
+                    <StatCard label="Warnings" value="72" color="var(--warning)" icon={Icons.info} />
+                    <StatCard label="Failures" value="0" sub="No leakage" color="var(--success)" icon={Icons.x} />
+                </div>
+
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Recent Safeguard Checks</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {checks.map(c => (
+                            <div key={c.id} style={{
+                                display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                                borderRadius: '10px', border: '1px solid var(--border)',
+                                background: c.status === 'warning' ? 'var(--warning-light)' : 'var(--lighter-bg)',
+                            }}>
+                                <span style={{
+                                    width: 28, height: 28, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: c.status === 'pass' ? 'var(--success-light)' : c.status === 'warning' ? 'var(--warning-light)' : 'var(--danger-light)',
+                                    color: c.status === 'pass' ? 'var(--success)' : c.status === 'warning' ? 'var(--warning)' : 'var(--danger)',
+                                    flexShrink: 0,
+                                }}>
+                                    {c.status === 'pass' ? <Icons.check /> : <Icons.info />}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>{c.student}</span>
+                                        <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--accent)', color: 'white', fontWeight: 600 }}>{c.move}</span>
+                                        <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--gold)', color: 'var(--uaeu-blue)', fontWeight: 600 }}>PE: {c.standard}</span>
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginTop: '2px' }}>{c.detail}</div>
+                                </div>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{c.time}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // RUBRIC SCORES (INSTRUCTOR)
+    // ============================================================================
+    function RubricScores() {
+        const rubricDimensions = ['Clarity of Claim', 'Evidence Quality', 'Assumption Awareness', 'Counterargument', 'Logical Coherence', 'Reflective Depth'];
+        const students = Object.values(USERS).filter(u => u.role === 'student');
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '0.5rem' }}>Rubric Scoring Panel</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                    Paul-Elder analytic rubric | Blinded scoring by 2 independent raters | Target ICC &ge; 0.70
+                </p>
+
+                <div style={{ background: 'white', borderRadius: '16px', boxShadow: 'var(--shadow-sm)', overflow: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--uaeu-blue)', color: 'white' }}>
+                                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600 }}>Student (Blinded)</th>
+                                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600 }}>Condition</th>
+                                {rubricDimensions.map(d => (
+                                    <th key={d} style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, fontSize: '0.7rem' }}>{d}</th>
+                                ))}
+                                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600 }}>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {students.map((s, i) => {
+                                const scores = rubricDimensions.map(() => Math.floor(Math.random() * 3 + 3));
+                                const total = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+                                return (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '0.75rem', fontWeight: 500 }}>Participant {String.fromCharCode(65 + i)}</td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                            <span style={{
+                                                padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600,
+                                                background: i % 2 === 0 ? 'var(--accent)' + '22' : 'var(--gold)' + '22',
+                                                color: i % 2 === 0 ? 'var(--accent)' : 'var(--gold)',
+                                            }}>{i % 2 === 0 ? 'ThinkMate' : 'Worksheet'}</span>
+                                        </td>
+                                        {scores.map((sc, j) => (
+                                            <td key={j} style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                                <span style={{
+                                                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.78rem', fontWeight: 600,
+                                                    background: sc >= 4 ? 'var(--success-light)' : sc >= 3 ? 'var(--warning-light)' : 'var(--danger-light)',
+                                                    color: sc >= 4 ? 'var(--success)' : sc >= 3 ? 'var(--warning)' : 'var(--danger)',
+                                                }}>{sc}/5</span>
+                                            </td>
+                                        ))}
+                                        <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 700, fontSize: '0.9rem' }}>{total}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '0.75rem' }}>Inter-Rater Reliability</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'var(--success-light)', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success)' }}>0.82</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 500 }}>ICC (Current)</div>
+                            </div>
+                            <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'var(--light-bg)', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)' }}>0.70</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>ICC (Threshold)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '0.75rem' }}>Effect Size Estimate</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'var(--info-light)', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--info)' }}>0.38</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--info)', fontWeight: 500 }}>Cohen's d (Est.)</div>
+                            </div>
+                            <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'var(--light-bg)', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)' }}>0.30</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>Min Target d</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // ADMIN SYSTEM OVERVIEW
+    // ============================================================================
+    function AdminHome() {
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>System Overview</h1>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    <StatCard label="Total Users" value="87" color="var(--accent)" icon={Icons.users} />
+                    <StatCard label="Active Courses" value="2" color="var(--gold)" icon={Icons.book} />
+                    <StatCard label="Total Sessions" value="342" color="var(--success)" icon={Icons.chat} />
+                    <StatCard label="API Calls Today" value="1.2K" color="var(--info)" icon={Icons.zap} />
+                    <StatCard label="Uptime" value="99.7%" sub="Healthy" color="var(--success)" icon={Icons.activity} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>API Usage</h3>
+                        {[
+                            { label: 'GPT-4o API Calls', value: '12,450', max: '50,000', pct: 25 },
+                            { label: 'Token Usage', value: '2.1M', max: '10M', pct: 21 },
+                            { label: 'Vector DB Queries', value: '3,200', max: '20,000', pct: 16 },
+                        ].map((item, i) => (
+                            <div key={i} style={{ marginBottom: '0.75rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '4px' }}>
+                                    <span style={{ fontWeight: 500 }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-muted)' }}>{item.value} / {item.max}</span>
+                                </div>
+                                <div style={{ height: 6, borderRadius: 3, background: 'var(--light-bg)' }}>
+                                    <div style={{ height: '100%', borderRadius: 3, width: `${item.pct}%`, background: 'var(--accent)', transition: 'width 1s' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>System Health</h3>
+                        {[
+                            { label: 'Web Server', status: 'healthy' },
+                            { label: 'FastAPI Backend', status: 'healthy' },
+                            { label: 'PostgreSQL DB', status: 'healthy' },
+                            { label: 'Vector DB (ChromaDB)', status: 'healthy' },
+                            { label: 'OpenAI API', status: 'healthy' },
+                            { label: 'Safeguard Layer', status: 'healthy' },
+                        ].map((s, i) => (
+                            <div key={i} style={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                padding: '0.5rem 0', borderBottom: i < 5 ? '1px solid var(--light-bg)' : 'none',
+                            }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{s.label}</span>
+                                <span style={{
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    fontSize: '0.72rem', fontWeight: 600,
+                                    color: s.status === 'healthy' ? 'var(--success)' : 'var(--danger)',
+                                }}>
+                                    <span style={{
+                                        width: 6, height: 6, borderRadius: '50%',
+                                        background: s.status === 'healthy' ? 'var(--success)' : 'var(--danger)',
+                                    }}></span>
+                                    {s.status === 'healthy' ? 'Healthy' : 'Down'}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Budget Tracker</h3>
+                        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--uaeu-blue)' }}>AED 59,000</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Total Budget</div>
+                        </div>
+                        {[
+                            { label: 'Student Stipends', amount: '15,000', pct: 25 },
+                            { label: 'PI/Co-PI Stipends', amount: '14,000', pct: 24 },
+                            { label: 'API Credits', amount: '10,000', pct: 17 },
+                            { label: 'Cloud Hosting', amount: '5,000', pct: 8 },
+                            { label: 'Vector DB', amount: '2,500', pct: 4 },
+                            { label: 'Other', amount: '12,500', pct: 21 },
+                        ].map((item, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', padding: '0.35rem 0', borderBottom: i < 5 ? '1px solid var(--light-bg)' : 'none' }}>
+                                <span>{item.label}</span>
+                                <span style={{ fontWeight: 600 }}>AED {item.amount}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // ADMIN ARCHITECTURE VIEW
+    // ============================================================================
+    function ArchitectureView() {
+        const layers = [
+            {
+                name: 'User Interface Layer',
+                color: '#2E8BC0',
+                components: ['React Web Application', 'Student Dialogue View', 'Instructor Dashboard', 'Admin Console', 'Responsive Design'],
+            },
+            {
+                name: 'Web Application Layer',
+                color: '#00508C',
+                components: ['FastAPI Backend', 'Session Management', 'Authentication (JWT)', 'REST API Endpoints', 'WebSocket (Real-time)'],
+            },
+            {
+                name: 'AI Core Layer',
+                color: '#003F72',
+                components: ['Constrained Move Selector', 'LLM Interface (GPT-4o)', 'Bloom\'s Classifier', 'ICAP Engagement Detector', 'Answer Leakage Safeguard', 'Paul-Elder Standards Mapper'],
+            },
+            {
+                name: 'Data & Storage Layer',
+                color: '#1A1A2E',
+                components: ['PostgreSQL (User/Session Data)', 'ChromaDB (Vector Store / RAG)', 'Structured Dialogue Logs', 'Analytics Pipeline', 'Secure Data Encryption'],
+            },
+        ];
+
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '0.5rem' }}>System Architecture</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '2rem' }}>
+                    Four-layer architecture with separated pedagogical control and language generation
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem' }}>
+                    {layers.map((layer, i) => (
+                        <div key={i} style={{
+                            background: 'white', borderRadius: '16px', padding: '1.25rem 1.5rem',
+                            boxShadow: 'var(--shadow-sm)', borderLeft: `5px solid ${layer.color}`,
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: layer.color }}>
+                                    Layer {i + 1}: {layer.name}
+                                </h3>
+                                <span style={{ fontSize: '0.7rem', padding: '2px 10px', borderRadius: '20px', background: layer.color + '15', color: layer.color, fontWeight: 600 }}>
+                                    {layer.components.length} components
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {layer.components.map((comp, j) => (
+                                    <span key={j} style={{
+                                        padding: '0.4rem 0.85rem', borderRadius: '8px',
+                                        background: layer.color + '10', color: layer.color,
+                                        fontSize: '0.8rem', fontWeight: 500,
+                                        border: `1px solid ${layer.color}25`,
+                                    }}>{comp}</span>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Move Selector Architecture */}
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Constrained Move-Selector Pipeline</h3>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                        {[
+                            { step: 'Student Response', desc: 'Raw input text' },
+                            { step: 'Bloom Classifier', desc: 'Cognitive level detection' },
+                            { step: 'Paul-Elder Analyzer', desc: 'Standard weakness check' },
+                            { step: 'Decision Matrix', desc: 'Rule-based move selection' },
+                            { step: 'Move Selector', desc: '6-move action space' },
+                            { step: 'LLM Generator', desc: 'Natural language realization' },
+                            { step: 'Safeguard Audit', desc: 'Answer leakage check' },
+                            { step: 'Delivery', desc: 'To student interface' },
+                        ].map((step, i) => (
+                            <React.Fragment key={i}>
+                                <div style={{
+                                    padding: '0.75rem 1rem', borderRadius: '10px',
+                                    background: i === 4 ? 'var(--accent)' : i === 6 ? 'var(--success)' + '22' : 'var(--light-bg)',
+                                    border: i === 4 ? '2px solid var(--accent)' : i === 6 ? '2px solid var(--success)' : '1px solid var(--border)',
+                                    textAlign: 'center', minWidth: 110, flexShrink: 0,
+                                }}>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: i === 4 ? 'white' : 'var(--text)', marginBottom: '2px' }}>{step.step}</div>
+                                    <div style={{ fontSize: '0.68rem', color: i === 4 ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}>{step.desc}</div>
+                                </div>
+                                {i < 7 && <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', flexShrink: 0 }}>&#8594;</span>}
+                            </React.Fragment>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Socratic Moves */}
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Constrained Action Space (6 Moves)</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                        {SOCRATIC_MOVES.map(move => (
+                            <div key={move.key} style={{
+                                padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)',
+                                display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+                            }}>
+                                <div style={{
+                                    width: 36, height: 36, borderRadius: '10px',
+                                    background: 'var(--accent)', color: 'white',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontWeight: 700, fontSize: '0.85rem', flexShrink: 0,
+                                }}>{move.icon}</div>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '2px' }}>{move.label}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{move.desc}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // RESEARCH DESIGN VIEW
+    // ============================================================================
+    function ResearchDesign() {
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '0.5rem' }}>Research Design</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '2rem' }}>
+                    Design-based research with embedded pilot evaluation and counterbalanced crossover
+                </p>
+
+                {/* Phases */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                    {[
+                        { phase: 'Phase 1', title: 'Co-Design', period: 'May-Jul 2026', tasks: ['Literature review', 'Task identification', 'Ethics submission', 'Rubric design'], color: '#9F7AEA' },
+                        { phase: 'Phase 2', title: 'Development', period: 'Jul-Sep 2026', tasks: ['React frontend', 'FastAPI backend', 'Prompt libraries', 'Red-team testing'], color: '#2E8BC0' },
+                        { phase: 'Phase 3', title: 'Pilot', period: 'Oct-Nov 2026', tasks: ['Task 1 deployment', 'Crossover Task 2', 'Data collection', 'Focus groups'], color: '#38A169' },
+                        { phase: 'Phase 4', title: 'Analysis', period: 'Nov-Dec 2026', tasks: ['Blinded scoring', 'Mixed-effects model', 'Thematic analysis', 'Scale-up decision'], color: '#ED8936' },
+                    ].map((p, i) => (
+                        <div key={i} style={{
+                            background: 'white', borderRadius: '16px', padding: '1.25rem',
+                            boxShadow: 'var(--shadow-sm)', borderTop: `4px solid ${p.color}`,
+                        }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: p.color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{p.phase}</div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)', marginTop: '0.25rem' }}>{p.title}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{p.period}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {p.tasks.map((t, j) => (
+                                    <div key={j} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-light)' }}>
+                                        <span style={{ color: p.color }}><Icons.check /></span> {t}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Research Questions */}
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Research Questions</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        {[
+                            { q: 'RQ1', text: 'Can ThinkMate be implemented with acceptable feasibility, usability, and instructional fidelity across two pilot courses?', type: 'Feasibility' },
+                            { q: 'RQ2', text: 'Do students produce stronger rubric-scored reasoning when supported by ThinkMate than when using a non-AI guided comparison?', type: 'Effectiveness' },
+                            { q: 'RQ3', text: 'Which usage patterns and fidelity indicators are associated with stronger or weaker reasoning outcomes?', type: 'Mechanisms' },
+                            { q: 'RQ4', text: 'How should findings be interpreted when deciding whether to scale, redesign, or stop?', type: 'Decision' },
+                        ].map((rq, i) => (
+                            <div key={i} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent)' }}>{rq.q}</span>
+                                    <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--light-bg)', color: 'var(--text-muted)', fontWeight: 600 }}>{rq.type}</span>
+                                </div>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-light)', lineHeight: 1.5 }}>{rq.text}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Theoretical Framework */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--bloom-analyze)', marginBottom: '0.75rem' }}>Bloom's Revised Taxonomy</h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginBottom: '0.75rem' }}>Cognitive-level progression framework for structuring tutoring moves.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {BLOOM_LEVELS.map((b, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem' }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: b.color, flexShrink: 0 }}></span>
+                                    <span style={{ fontWeight: 500 }}>{b.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--gold)', marginBottom: '0.75rem' }}>Paul-Elder CT Model</h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginBottom: '0.75rem' }}>Intellectual standards for evaluating reasoning quality.</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {PAUL_ELDER_STANDARDS.map(s => (
+                                <span key={s} style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', background: 'var(--gold)' + '22', color: 'var(--gold)', fontWeight: 500 }}>{s}</span>
+                            ))}
+                        </div>
+                    </div>
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--icap-interactive)', marginBottom: '0.75rem' }}>ICAP Framework</h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginBottom: '0.75rem' }}>Engagement classification for learning outcomes prediction.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {ICAP_LEVELS.map(level => (
+                                <div key={level.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem' }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: level.color, flexShrink: 0 }}></span>
+                                    <span style={{ fontWeight: 500 }}>{level.label}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>- {level.desc.substring(0, 35)}...</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Success Targets */}
+                <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>Success Targets</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.75rem' }}>
+                        {[
+                            { metric: 'Consenting Students', target: '>=60', current: '80', met: true },
+                            { metric: 'Completion Rate', target: '>=80%', current: '87%', met: true },
+                            { metric: 'Mean SUS Score', target: '>=68', current: '74', met: true },
+                            { metric: 'Safeguard Fidelity', target: '>=85%', current: '94%', met: true },
+                            { metric: 'Effect Size (d)', target: '>=0.30', current: '0.38', met: true },
+                        ].map((t, i) => (
+                            <div key={i} style={{
+                                padding: '1rem', borderRadius: '12px', textAlign: 'center',
+                                background: t.met ? 'var(--success-light)' : 'var(--warning-light)',
+                                border: `1px solid ${t.met ? 'var(--success)' : 'var(--warning)'}44`,
+                            }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{t.metric}</div>
+                                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: t.met ? 'var(--success)' : 'var(--warning)' }}>{t.current}</div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>Target: {t.target}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // ADMIN COURSES
+    // ============================================================================
+    function AdminCourses() {
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>Course Management</h1>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                    {Object.values(COURSES).map(course => (
+                        <div key={course.id} style={{
+                            background: 'white', borderRadius: '16px', padding: '1.5rem',
+                            boxShadow: 'var(--shadow-sm)', borderTop: `4px solid ${course.color}`,
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: course.color }}>{course.code}</h3>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>{course.name}</p>
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{course.college}</p>
+                                </div>
+                                <span style={{
+                                    padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
+                                    background: 'var(--success-light)', color: 'var(--success)',
+                                }}>Active</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <div style={{ padding: '0.5rem', borderRadius: '8px', background: 'var(--light-bg)', fontSize: '0.8rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Instructor:</span> <strong>{course.instructor}</strong>
+                                </div>
+                                <div style={{ padding: '0.5rem', borderRadius: '8px', background: 'var(--light-bg)', fontSize: '0.8rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Students:</span> <strong>{course.students}</strong>
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Topics</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                    {course.topics.map(t => (
+                                        <span key={t} style={{
+                                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem',
+                                            background: course.color + '15', color: course.color, fontWeight: 500,
+                                        }}>{t}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // ADMIN USERS
+    // ============================================================================
+    function AdminUsers() {
+        const allUsers = Object.values(USERS);
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>User Management</h1>
+                <div style={{ background: 'white', borderRadius: '16px', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--light-bg)' }}>
+                                {['User', 'Role', 'Department/Major', 'Status'].map(h => (
+                                    <th key={h} style={{ padding: '0.85rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {allUsers.map((u, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '0.85rem 1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div style={{
+                                                width: 34, height: 34, borderRadius: '10px',
+                                                background: u.role === 'admin' ? 'var(--danger)' : u.role === 'instructor' ? 'var(--gold)' : 'var(--accent)',
+                                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontWeight: 700, fontSize: '0.7rem',
+                                            }}>{u.avatar}</div>
+                                            <span style={{ fontWeight: 500 }}>{u.name}</span>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '0.85rem 1rem' }}>
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 600, textTransform: 'capitalize',
+                                            background: u.role === 'admin' ? 'var(--danger-light)' : u.role === 'instructor' ? 'var(--warning-light)' : 'var(--info-light)',
+                                            color: u.role === 'admin' ? 'var(--danger)' : u.role === 'instructor' ? 'var(--warning)' : 'var(--info)',
+                                        }}>{u.role}</span>
+                                    </td>
+                                    <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)' }}>
+                                        {u.major || u.department || 'System'}
+                                    </td>
+                                    <td style={{ padding: '0.85rem 1rem' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--success)', fontWeight: 500 }}>
+                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span> Active
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // ADMIN SYSTEM CONFIG
+    // ============================================================================
+    function SystemConfig() {
+        return (
+            <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--uaeu-blue)', marginBottom: '1.5rem' }}>System Configuration</h1>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                    {[
+                        { title: 'LLM Configuration', items: [
+                            { label: 'Provider', value: 'OpenAI' },
+                            { label: 'Model', value: 'GPT-4o' },
+                            { label: 'Temperature', value: '0.3' },
+                            { label: 'Max Tokens', value: '1024' },
+                            { label: 'Token Cap / Day', value: '100,000' },
+                            { label: 'Fallback Model', value: 'Llama 3 (open-source)' },
+                        ]},
+                        { title: 'Safeguard Settings', items: [
+                            { label: 'Answer Leakage Detection', value: 'Enabled' },
+                            { label: 'Premature Closure Guard', value: 'Enabled' },
+                            { label: 'Template Fallback', value: 'Active on warning' },
+                            { label: 'Red-team Testing', value: 'Completed' },
+                            { label: 'Audit Sampling Rate', value: '100%' },
+                            { label: 'Fidelity Threshold', value: '85%' },
+                        ]},
+                        { title: 'Data & Privacy', items: [
+                            { label: 'Data Storage', value: 'UAEU Secure Servers' },
+                            { label: 'Encryption', value: 'AES-256' },
+                            { label: 'Pseudonymisation', value: 'At collection' },
+                            { label: 'Retention Period', value: '5 years' },
+                            { label: 'Compliance', value: 'UAE PDPL (45/2021)' },
+                            { label: 'Ethics Approval', value: 'Pending' },
+                        ]},
+                        { title: 'RAG Configuration', items: [
+                            { label: 'Vector Database', value: 'ChromaDB' },
+                            { label: 'Embedding Model', value: 'text-embedding-3-small' },
+                            { label: 'Chunk Size', value: '512 tokens' },
+                            { label: 'Top-K Retrieval', value: '5' },
+                            { label: 'Course Materials', value: '2 courses loaded' },
+                            { label: 'Content Verification', value: 'PI reviewed' },
+                        ]},
+                    ].map((section, i) => (
+                        <div key={i} style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--uaeu-blue)', marginBottom: '1rem' }}>{section.title}</h3>
+                            {section.items.map((item, j) => (
+                                <div key={j} style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '0.5rem 0', borderBottom: j < section.items.length - 1 ? '1px solid var(--light-bg)' : 'none',
+                                }}>
+                                    <span style={{ fontSize: '0.82rem', color: 'var(--text-light)' }}>{item.label}</span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>{item.value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // MAIN APP
+    // ============================================================================
+    function App() {
+        const [user, setUser] = useState(null);
+        const [currentView, setCurrentView] = useState('');
+        const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+        function handleLogin(u) {
+            setUser(u);
+            setCurrentView(u.role === 'student' ? 'student-home' : u.role === 'instructor' ? 'instructor-home' : 'admin-home');
+        }
+
+        function handleLogout() {
+            setUser(null);
+            setCurrentView('');
+        }
+
+        if (!user) return <LoginPage onLogin={handleLogin} />;
+
+        const viewComponents = {
+            'student-home': () => <StudentHome user={user} onNavigate={setCurrentView} />,
+            'student-dialogue': () => <SocraticDialogue user={user} />,
+            'student-progress': () => <StudentProgress user={user} />,
+            'student-sessions': () => <SessionHistory user={user} />,
+            'instructor-home': () => <InstructorDashboard user={user} />,
+            'instructor-analytics': () => <InstructorAnalytics />,
+            'instructor-students': () => <InstructorStudents />,
+            'instructor-dialogues': () => <DialogueLogs />,
+            'instructor-fidelity': () => <FidelityMonitor />,
+            'instructor-rubric': () => <RubricScores />,
+            'admin-home': () => <AdminHome />,
+            'admin-courses': () => <AdminCourses />,
+            'admin-users': () => <AdminUsers />,
+            'admin-system': () => <SystemConfig />,
+            'admin-architecture': () => <ArchitectureView />,
+            'admin-research': () => <ResearchDesign />,
+        };
+
+        const ViewComponent = viewComponents[currentView];
+
+        return (
+            <div style={{ display: 'flex', minHeight: '100vh' }}>
+                <Sidebar
+                    user={user}
+                    currentView={currentView}
+                    onNavigate={setCurrentView}
+                    onLogout={handleLogout}
+                    collapsed={sidebarCollapsed}
+                    onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+                />
+                <main style={{
+                    flex: 1, marginLeft: sidebarCollapsed ? 72 : 260,
+                    transition: 'margin-left 0.25s ease',
+                    padding: '1.5rem 2rem',
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                }}>
+                    {ViewComponent ? <ViewComponent /> : <div>View not found</div>}
+                </main>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
