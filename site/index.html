@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThinkMate | AI-Powered Socratic Tutoring Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --uaeu-blue: #003F72;
+            --section-blue: #00508C;
+            --accent: #2E8BC0;
+            --light-bg: #F0F4F8;
+            --white: #FFFFFF;
+            --text: #1A1A2E;
+            --text-light: #4A5568;
+            --gold: #C9A23C;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed; top: 0; width: 100%; z-index: 100;
+            background: rgba(0, 63, 114, 0.97);
+            backdrop-filter: blur(10px);
+            padding: 0 2rem;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.15);
+        }
+        nav .nav-inner {
+            max-width: 1200px; margin: 0 auto;
+            display: flex; justify-content: space-between; align-items: center;
+            height: 64px;
+        }
+        nav .logo { color: white; font-weight: 700; font-size: 1.3rem; letter-spacing: -0.5px; }
+        nav .logo span { color: var(--gold); }
+        nav ul { list-style: none; display: flex; gap: 2rem; }
+        nav ul a { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+        nav ul a:hover { color: white; }
+
+        /* Hero */
+        .hero {
+            background: linear-gradient(135deg, var(--uaeu-blue) 0%, var(--section-blue) 50%, var(--accent) 100%);
+            color: white;
+            padding: 10rem 2rem 6rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 80%, rgba(255,255,255,0.03) 0%, transparent 40%);
+        }
+        .hero-content { position: relative; max-width: 800px; margin: 0 auto; }
+        .hero h1 { font-size: 3.2rem; font-weight: 700; letter-spacing: -1px; margin-bottom: 1rem; }
+        .hero .subtitle { font-size: 1.25rem; font-weight: 300; opacity: 0.9; margin-bottom: 2rem; line-height: 1.7; }
+        .hero .badges { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2.5rem; }
+        .hero .badge {
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+            padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500;
+        }
+        .hero .status-badge {
+            display: inline-block;
+            background: var(--gold); color: var(--uaeu-blue);
+            padding: 0.5rem 1.5rem; border-radius: 25px;
+            font-weight: 600; font-size: 0.9rem;
+        }
+
+        /* Sections */
+        section { padding: 5rem 2rem; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .section-title {
+            font-size: 2rem; font-weight: 700; color: var(--uaeu-blue);
+            margin-bottom: 0.5rem; letter-spacing: -0.5px;
+        }
+        .section-subtitle { color: var(--text-light); font-size: 1.05rem; margin-bottom: 3rem; }
+
+        /* Problem-Solution */
+        .problem-solution { background: var(--light-bg); }
+        .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; }
+        .ps-card {
+            background: white; border-radius: 12px; padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            border-top: 4px solid var(--accent);
+        }
+        .ps-card h3 { color: var(--section-blue); margin-bottom: 1rem; font-size: 1.2rem; }
+        .ps-card p { color: var(--text-light); font-size: 0.95rem; }
+
+        /* How it Works */
+        .how-it-works { background: white; }
+        .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-top: 2rem; }
+        .step {
+            text-align: center; padding: 1.5rem;
+            border-radius: 12px;
+            transition: transform 0.2s;
+        }
+        .step:hover { transform: translateY(-4px); }
+        .step-num {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--uaeu-blue); color: white;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1rem; font-weight: 700; font-size: 1.2rem;
+        }
+        .step h4 { color: var(--section-blue); margin-bottom: 0.5rem; font-size: 1rem; }
+        .step p { color: var(--text-light); font-size: 0.85rem; }
+
+        /* Frameworks */
+        .frameworks { background: var(--light-bg); }
+        .framework-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+        .fw-card {
+            background: white; border-radius: 12px; padding: 2rem; text-align: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }
+        .fw-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+        .fw-card h4 { color: var(--section-blue); margin-bottom: 0.5rem; }
+        .fw-card p { color: var(--text-light); font-size: 0.9rem; }
+
+        /* Team */
+        .team { background: white; }
+        .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+        .team-card {
+            display: flex; gap: 1.5rem; padding: 1.5rem;
+            background: var(--light-bg); border-radius: 12px;
+        }
+        .team-avatar {
+            width: 60px; height: 60px; border-radius: 50%;
+            background: var(--uaeu-blue); color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1.2rem; flex-shrink: 0;
+        }
+        .team-info h4 { color: var(--section-blue); font-size: 1rem; }
+        .team-info .role { color: var(--gold); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .team-info p { color: var(--text-light); font-size: 0.85rem; margin-top: 0.3rem; }
+
+        /* Timeline */
+        .timeline-section { background: var(--light-bg); }
+        .timeline { position: relative; max-width: 700px; margin: 0 auto; }
+        .timeline::before {
+            content: ''; position: absolute; left: 24px; top: 0; bottom: 0;
+            width: 3px; background: var(--accent);
+        }
+        .tl-item { display: flex; gap: 1.5rem; margin-bottom: 2rem; position: relative; }
+        .tl-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: var(--uaeu-blue); border: 3px solid var(--accent);
+            flex-shrink: 0; margin-top: 4px; position: relative; left: 18px;
+        }
+        .tl-content { padding-left: 1rem; }
+        .tl-date { color: var(--accent); font-weight: 600; font-size: 0.85rem; }
+        .tl-content h4 { color: var(--section-blue); font-size: 1rem; }
+        .tl-content p { color: var(--text-light); font-size: 0.9rem; }
+
+        /* Footer */
+        footer {
+            background: var(--uaeu-blue); color: rgba(255,255,255,0.7);
+            padding: 3rem 2rem; text-align: center;
+        }
+        footer .footer-logo { color: white; font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; }
+        footer .footer-logo span { color: var(--gold); }
+        footer p { font-size: 0.85rem; margin-bottom: 0.3rem; }
+        footer a { color: var(--gold); text-decoration: none; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.2rem; }
+            .ps-grid, .framework-grid, .team-grid { grid-template-columns: 1fr; }
+            .steps { grid-template-columns: 1fr 1fr; }
+            nav ul { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            <div class="logo">Think<span>Mate</span></div>
+            <ul>
+                <li><a href="#about">About</a></li>
+                <li><a href="#approach">Approach</a></li>
+                <li><a href="#frameworks">Frameworks</a></li>
+                <li><a href="#team">Team</a></li>
+                <li><a href="#timeline">Timeline</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>ThinkMate</h1>
+            <p class="subtitle">An AI-Powered Socratic Tutoring Platform for Developing Critical Thinking Skills Across Two Pilot Disciplines</p>
+            <div class="badges">
+                <span class="badge">UAEU CETL Innovation Project</span>
+                <span class="badge">Engineering + Humanities</span>
+                <span class="badge">May &ndash; December 2026</span>
+            </div>
+            <span class="status-badge">Phase: Pre-Pilot Development</span>
+        </div>
+    </section>
+
+    <!-- Problem / Solution -->
+    <section class="problem-solution" id="about">
+        <div class="container">
+            <h2 class="section-title">Why ThinkMate?</h2>
+            <p class="section-subtitle">Bridging the gap between content knowledge and applied reasoning</p>
+            <div class="ps-grid">
+                <div class="ps-card">
+                    <h3>The Challenge</h3>
+                    <p>Critical thinking is a formal learning outcome in most degree programmes, yet performance remains uneven. Students complete coursework successfully while struggling to justify claims, evaluate alternatives, and identify hidden assumptions. In classes of 40&ndash;80 students, sustained individualised Socratic questioning is not feasible through instructor time alone.</p>
+                </div>
+                <div class="ps-card">
+                    <h3>Our Approach</h3>
+                    <p>ThinkMate is a theory-constrained, reasoning-first AI tutoring platform. It separates pedagogical control from language generation: a rule-based move selector chooses the next Socratic move, and only then does the LLM generate the question. A safeguard layer audits every turn for answer leakage. The result is structured dialogue that pushes students toward deeper reasoning without giving them the answer.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works -->
+    <section class="how-it-works" id="approach">
+        <div class="container">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-subtitle">A four-stage adaptive dialogue cycle</p>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h4>Student Modelling</h4>
+                    <p>Assesses the learner's current cognitive state and Bloom's taxonomy level from their response</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h4>Strategy Selection</h4>
+                    <p>Rule-based move selector picks from six Socratic moves targeting detected Paul-Elder weaknesses</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h4>Dialogue Generation</h4>
+                    <p>LLM generates the contextual Socratic question within constrained prompt templates</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <h4>Safeguard Audit</h4>
+                    <p>Response is checked for answer leakage and factual accuracy before delivery to the student</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Theoretical Frameworks -->
+    <section class="frameworks" id="frameworks">
+        <div class="container">
+            <h2 class="section-title">Grounded in Theory</h2>
+            <p class="section-subtitle">Three linked frameworks underpin every tutoring interaction</p>
+            <div class="framework-grid">
+                <div class="fw-card">
+                    <div class="fw-icon">&#x1F4CA;</div>
+                    <h4>Bloom's Revised Taxonomy</h4>
+                    <p>Cognitive-level progression from Remember through Create. The system targets the boundary between understanding and analysing, where CT development is most critical.</p>
+                </div>
+                <div class="fw-card">
+                    <div class="fw-icon">&#x1F9E0;</div>
+                    <h4>Paul-Elder CT Model</h4>
+                    <p>Six intellectual standards &mdash; clarity, accuracy, depth, breadth, logic, fairness &mdash; operationalised as tutoring-move tags for every dialogue turn.</p>
+                </div>
+                <div class="fw-card">
+                    <div class="fw-icon">&#x1F4AC;</div>
+                    <h4>ICAP Framework</h4>
+                    <p>Engagement classification (Passive, Active, Constructive, Interactive) logged per turn to explain mechanisms behind positive or null learning outcomes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team -->
+    <section class="team" id="team">
+        <div class="container">
+            <h2 class="section-title">Project Team</h2>
+            <p class="section-subtitle">An interdisciplinary collaboration between Engineering and Humanities</p>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar">SK</div>
+                    <div class="team-info">
+                        <span class="role">Principal Investigator</span>
+                        <h4>Dr. Sanan H. Khan</h4>
+                        <p>Dept. of Mechanical &amp; Aerospace Engineering, College of Engineering. Leads system architecture, AI integration, and technical quality control.</p>
+                    </div>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">MC</div>
+                    <div class="team-info">
+                        <span class="role">Co-Principal Investigator</span>
+                        <h4>Dr. Mariana V. C. Coutinho</h4>
+                        <p>Dept. of Cognitive Sciences, College of Humanities &amp; Social Sciences. Leads pedagogical design, mixed-methods evaluation, and manuscript development.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar">SA</div>
+                    <div class="team-info">
+                        <h4>Sara Khaled Alsaedi</h4>
+                        <p>UG, Engineering &mdash; Back-end development (FastAPI, LLM API integration, logging)</p>
+                    </div>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">WA</div>
+                    <div class="team-info">
+                        <h4>Wadima Ahmed Aldhaheri</h4>
+                        <p>UG, Engineering &mdash; Front-end development (React, dashboard, UI/UX)</p>
+                    </div>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">LJ</div>
+                    <div class="team-info">
+                        <h4>Laiya Khorshed Jamsheer</h4>
+                        <p>UG, Humanities &mdash; Socratic prompt authoring, misconception mapping, usability review</p>
+                    </div>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">SA</div>
+                    <div class="team-info">
+                        <h4>Salma Alhashmi</h4>
+                        <p>UG, Humanities &mdash; Content development, rubric-linked tutoring moves, pilot support</p>
+                    </div>
+                </div>
+            </div>
+            <div class="team-grid" style="max-width: 550px;">
+                <div class="team-card">
+                    <div class="team-avatar">MK</div>
+                    <div class="team-info">
+                        <h4>Madni Shifa Ullah Khan</h4>
+                        <p>Graduate, Engineering &mdash; Research coordination, data management, statistical analysis, documentation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="timeline-section" id="timeline">
+        <div class="container">
+            <h2 class="section-title">Project Timeline</h2>
+            <p class="section-subtitle">May 2026 &ndash; December 2026</p>
+            <div class="timeline">
+                <div class="tl-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-content">
+                        <span class="tl-date">Phase 1: May &ndash; July 2026</span>
+                        <h4>Needs Analysis &amp; Co-Design</h4>
+                        <p>Ethics submission, course partner confirmation, rubric development, and baseline data collection.</p>
+                    </div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-content">
+                        <span class="tl-date">Phase 2: July &ndash; September 2026</span>
+                        <h4>Platform Development</h4>
+                        <p>Front-end and back-end build, prompt authoring, alpha/beta testing, and red-team review.</p>
+                    </div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-content">
+                        <span class="tl-date">Phase 3: September &ndash; November 2026</span>
+                        <h4>Pilot Deployment</h4>
+                        <p>Crossover randomisation, Task 1 and Task 2 deployment, artifact collection, surveys, and focus groups.</p>
+                    </div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-content">
+                        <span class="tl-date">Phase 4: November &ndash; December 2026</span>
+                        <h4>Analysis &amp; Reporting</h4>
+                        <p>Quantitative and qualitative analysis, scale-up decision memo, final CETL report, and dissemination.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-logo">Think<span>Mate</span></div>
+        <p>CETL Innovation in Teaching &amp; Learning Student Projects</p>
+        <p>United Arab Emirates University &bull; 2026</p>
+        <p style="margin-top: 1rem;">Contact: <a href="mailto:sanan.khan@uaeu.ac.ae">sanan.khan@uaeu.ac.ae</a></p>
+    </footer>
+</body>
+</html>
