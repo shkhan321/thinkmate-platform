@@ -1,0 +1,81 @@
+import type {
+  AdminSummary,
+  Health,
+  PilotSession,
+  PilotTask,
+  Student,
+  Turn
+} from "./types";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const body = await response.json();
+      message = body.detail || message;
+    } catch {
+      // keep status text
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
+
+export const api = {
+  health: () => request<Health>("/health"),
+  accessCode: (accessCode: string) =>
+    request<Student>("/api/auth/access-code", {
+      method: "POST",
+      body: JSON.stringify({ access_code: accessCode })
+    }),
+  consent: (studentId: string) =>
+    request<{ accepted: boolean; consent_version: string }>("/api/consent", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, accepted: true })
+    }),
+  tasks: (studentId: string) =>
+    request<{ tasks: PilotTask[] }>(`/api/tasks?student_id=${encodeURIComponent(studentId)}`),
+  startSession: (studentId: string, taskId: string) =>
+    request<PilotSession>("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, task_id: taskId })
+    }),
+  completeSession: (sessionId: string) =>
+    request<{ id: string; status: string }>(`/api/sessions/${sessionId}/complete`, {
+      method: "POST"
+    }),
+  dialogueTurn: (sessionId: string, content: string) =>
+    request<{ student_turn: Turn; tutor_turn: Turn }>("/api/dialogue/turn", {
+      method: "POST",
+      body: JSON.stringify({ session_id: sessionId, content })
+    }),
+  worksheetResponse: (sessionId: string, stepKey: string, prompt: string, response: string) =>
+    request<{ id: string }>("/api/worksheet/response", {
+      method: "POST",
+      body: JSON.stringify({ session_id: sessionId, step_key: stepKey, prompt, response })
+    }),
+  adminSummary: (password: string) =>
+    request<AdminSummary>("/api/admin/summary", {
+      headers: { "X-Admin-Password": password }
+    }),
+  adminExportJson: (password: string, blinded: boolean) =>
+    request<unknown>(`/api/admin/export?format=json&blinded=${blinded}`, {
+      headers: { "X-Admin-Password": password }
+    }),
+  adminExportCsv: async (password: string, blinded: boolean) => {
+    const response = await fetch(`${API_BASE}/api/admin/export?format=csv&blinded=${blinded}`, {
+      headers: { "X-Admin-Password": password }
+    });
+    if (!response.ok) throw new Error(response.statusText);
+    return response.text();
+  }
+};
