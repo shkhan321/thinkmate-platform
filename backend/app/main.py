@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api import admin, auth, consent, dialogue, sessions, tasks, worksheet
@@ -52,7 +56,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "consent_version": active_settings.consent_version,
         }
 
+    mount_frontend(app)
+
     return app
+
+
+def mount_frontend(app: FastAPI) -> None:
+    dist_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    index_file = dist_dir / "index.html"
+    assets_dir = dist_dir / "assets"
+    if not index_file.exists():
+        return
+
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API route not found")
+
+        dist_root = dist_dir.resolve()
+        requested = (dist_dir / full_path).resolve()
+        if requested.is_file() and requested.is_relative_to(dist_root):
+            return FileResponse(requested)
+        return FileResponse(index_file)
 
 
 app = create_app()

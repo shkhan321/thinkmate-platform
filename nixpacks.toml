@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ["python311", "nodejs_22", "pnpm"]
+
+[phases.install]
+cmds = [
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate && pip install -r backend/requirements.txt",
+  "cd frontend && pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = [
+  "cd frontend && pnpm build"
+]
+
+[variables]
+PATH = "/opt/venv/bin:$PATH"

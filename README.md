@@ -1,101 +1,95 @@
-# ThinkMate
+# ThinkMate Pilot Platform
 
-**An AI-Powered Socratic Tutoring Platform for Developing Critical Thinking Skills**
+ThinkMate is a pilot platform for testing Socratic AI support in UAEU student projects. It is built for the approved CETL pilot, with pseudonymous access codes, consent, two-course task routing, a ThinkMate chat condition, a guided worksheet condition, and research export tools.
 
-UAEU CETL Innovation in Teaching and Learning Student Projects | May - December 2026
+This repository now contains a real pilot MVP, not only a project website.
 
----
+## What The Pilot Does
 
-## Overview
+- Students enter a study access code such as `ENG-A-001` or `PSY-B-001`.
+- Students accept the study consent before seeing tasks.
+- Each student gets two tasks from their course.
+- The platform automatically routes each task to either ThinkMate chat or guided worksheet comparison.
+- ThinkMate asks Socratic questions and logs the dialogue.
+- The worksheet condition logs structured student responses.
+- The admin area shows a summary and exports JSON or CSV data.
+- The model layer can run in safe demo mode or call a Hugging Face hosted model when `HF_API_TOKEN` is set.
 
-ThinkMate is a theory-constrained Socratic tutoring platform that develops critical thinking through structured AI dialogue. It separates pedagogical control from language generation: a rule-based move selector determines what the tutor should do next, and only then does the LLM generate the question. A safeguard layer audits every response before delivery.
+## Local Backend
 
-Grounded in three frameworks:
-- **Bloom's Revised Taxonomy** - cognitive level progression
-- **Paul-Elder CT Model** - six intellectual standards
-- **ICAP Framework** - engagement classification
+From the repository root:
 
-## Project Team
-
-| Role | Name | Focus |
-|------|------|-------|
-| PI | Dr. Sanan H. Khan | System architecture, AI integration |
-| Co-PI | Dr. Mariana V. C. Coutinho | Pedagogical design, evaluation |
-| UG Engineer | Sara Khaled Alsaedi | Back-end (FastAPI) |
-| UG Engineer | Wadima Ahmed Aldhaheri | Front-end (React) |
-| UG Humanities | Laiya Khorshed Jamsheer | Prompt library authoring |
-| UG Humanities | Salma Alhashmi | Content development |
-| Graduate RA | Madni Shifa Ullah Khan | Research coordination, analysis |
-
-## Repository Structure
-
-```
-thinkmate-platform/
-  docs/                     -- Platform specification and guides
-  site/                     -- GitHub Pages landing page
-  proposal/                 -- CETL application form (LaTeX + PDF)
-  frontend/                 -- React + TypeScript + TailwindCSS
-  backend/                  -- FastAPI + Python
-  prompt_libraries/         -- Socratic prompt templates per discipline
-  course_materials/         -- RAG source documents (to be populated)
-  docker-compose.yml        -- Full stack deployment
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+Copy-Item .env.example .env
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## Quick Start
+Open `http://127.0.0.1:8000/health`.
 
-```bash
-# 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/thinkmate-platform.git
-cd thinkmate-platform
+## Local Frontend
 
-# 2. Copy environment variables
-cp .env.example .env
-# Edit .env with your API keys
+In a second terminal:
 
-# 3. Start all services
-docker-compose up -d
-
-# 4. Access the platform
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:8000/docs
-# ChromaDB: http://localhost:8001
+```powershell
+cd frontend
+pnpm install
+pnpm dev
 ```
 
-## Documentation
+Open the local frontend URL shown by Vite. The frontend uses `VITE_API_URL=http://localhost:8000` by default.
 
-- [Platform Specification](docs/THINKMATE_PLATFORM_SPEC.md) - Complete technical spec
-- [API Reference](docs/API_REFERENCE.md) - Endpoint documentation
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Production setup
+## One-Service Production Build
 
-## Tech Stack
+The backend can serve the built frontend from `frontend/dist`. For a local production-style check:
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + TypeScript + Vite + TailwindCSS + shadcn/ui |
-| Backend | FastAPI (Python 3.11+) |
-| Database | PostgreSQL 15 |
-| Vector Store | ChromaDB |
-| LLM | OpenAI GPT-4o (primary) / Llama 3.1 (fallback) |
-| Deployment | Docker + Docker Compose |
+```powershell
+cd frontend
+pnpm build
+cd ..\backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Then open `http://127.0.0.1:8000`.
+
+## Railway Deployment
+
+Use Railway with one web service and one PostgreSQL database.
+
+Set these Railway variables:
+
+```text
+DATABASE_URL=<Railway PostgreSQL connection string>
+HF_API_TOKEN=<Hugging Face token, optional for demo mode>
+HF_MODEL=google/gemma-2-2b-it
+ADMIN_PASSWORD=<strong admin password>
+APP_ENV=production
+CONSENT_VERSION=v1-2026-06-19
+```
+
+Railway will use `nixpacks.toml` to install Python and frontend dependencies, build the frontend, and start FastAPI through `railway.json`.
+
+## Pilot Safety Note
+
+This platform is ready for controlled technical testing. Before real student use, the consent text, retention policy, access-code list, data export handling, and model settings must match UAEU ethics and data-governance approval.
+
+## Test Commands
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest backend\tests -v
+cd frontend
+pnpm test
+pnpm build
+```
 
 ## Status
 
-**Phase: Pre-Pilot Development**
-
-- [x] CETL proposal submitted
-- [x] Platform specification complete
-- [x] Project landing page live
-- [ ] Database schema implemented
-- [ ] AI core modules built
-- [ ] Frontend dialogue UI
-- [ ] Instructor dashboard
-- [ ] Red-team testing
-- [ ] Pilot deployment (Fall 2026)
-
-## License
-
-This project is developed for UAE University under the CETL Innovation in Teaching and Learning programme.
-
----
-
-*Contact: sanan.khan@uaeu.ac.ae*
+- Backend API: implemented
+- Student pilot flow: implemented
+- ThinkMate chat and demo/Hugging Face model adapter: implemented
+- Guided worksheet condition: implemented
+- Admin summary/export: implemented
+- Railway deployment configuration: included
+- Actual cloud deployment: requires Railway project access and production secrets
