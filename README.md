@@ -77,6 +77,19 @@ Railway will use `nixpacks.toml` to install Python and frontend dependencies, bu
 
 For a real pilot, replace the sample `PILOT_ACCESS_CODES` value with the approved pseudonymous class list. Keep the format `ACCESS_CODE:course:sequence`, separated by semicolons. Use `SEED_DEMO_STUDENTS=false` so students cannot enter the demo codes.
 
+## Docker Deployment
+
+The repository also includes a Dockerfile for Docker-capable hosts such as a VPS.
+
+```bash
+docker build -t thinkmate-platform .
+docker run --env-file .env.production -p 8000:8000 thinkmate-platform
+```
+
+Use PostgreSQL for production. SQLite is only for local development and technical testing.
+
+See [Production Deployment Checklist](docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md) before giving students the live URL.
+
 ## Pilot Safety Note
 
 This platform is ready for controlled technical testing. Before real student use, the consent text, retention policy, access-code list, data export handling, and model settings must match UAEU ethics and data-governance approval.
@@ -98,4 +111,5 @@ pnpm build
 - Guided worksheet condition: implemented
 - Admin summary/export: implemented
 - Railway deployment configuration: included
+- Docker deployment path: included
 - Actual cloud deployment: requires Railway project access and production secrets
