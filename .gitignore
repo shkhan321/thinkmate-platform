@@ -22,6 +22,7 @@ frontend/dist/
 *.swp
 *.swo
 .superpowers/
+.worktrees/
 
 # OS
 .DS_Store
