@@ -14,6 +14,7 @@ This repository now contains a real pilot MVP, not only a project website.
 - The worksheet condition logs structured student responses.
 - The admin area shows a summary and exports JSON or CSV data.
 - The model layer can run in safe demo mode or call a Hugging Face hosted model when `HF_API_TOKEN` is set.
+- Real pilot access codes can be seeded from environment variables without adding student names.
 
 ## Local Backend
 
@@ -67,9 +68,14 @@ HF_MODEL=google/gemma-2-2b-it
 ADMIN_PASSWORD=<strong admin password>
 APP_ENV=production
 CONSENT_VERSION=v1-2026-06-19
+SEED_DEMO_STUDENTS=false
+PILOT_ACCESS_CODES=ENG-A-001:engineering:A;ENG-B-001:engineering:B;PSY-A-001:psychology:A;PSY-B-001:psychology:B
+CORS_ORIGINS=https://<your-railway-app>.up.railway.app
 ```
 
 Railway will use `nixpacks.toml` to install Python and frontend dependencies, build the frontend, and start FastAPI through `railway.json`.
+
+For a real pilot, replace the sample `PILOT_ACCESS_CODES` value with the approved pseudonymous class list. Keep the format `ACCESS_CODE:course:sequence`, separated by semicolons. Use `SEED_DEMO_STUDENTS=false` so students cannot enter the demo codes.
 
 ## Pilot Safety Note
 

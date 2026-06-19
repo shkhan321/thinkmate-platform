@@ -9,11 +9,15 @@ from sqlalchemy import text
 from app.api import admin, auth, consent, dialogue, sessions, tasks, worksheet
 from app.config import Settings, get_settings
 from app.database import Base, make_engine, make_session_factory
-from app.seed import seed_database
+from app.seed import parse_pilot_access_codes, seed_database
+
+
+DEFAULT_ADMIN_PASSWORDS = {"", "change-me", "change-this-before-deploying"}
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     active_settings = settings or get_settings()
+    validate_settings(active_settings)
     app = FastAPI(title="ThinkMate Pilot API", version="0.1.0")
     app.state.settings = active_settings
     app.state.engine = make_engine(active_settings.database_url)
@@ -21,12 +25,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Base.metadata.create_all(app.state.engine)
     with app.state.SessionLocal() as db:
-        seed_database(db)
+        seed_database(
+            db,
+            pilot_students=parse_pilot_access_codes(active_settings.pilot_access_codes),
+            include_demo_students=active_settings.seed_demo_students,
+        )
 
+    origins = parse_cors_origins(active_settings.cors_origins)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=origins,
+        allow_credentials=origins != ["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -59,6 +68,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     mount_frontend(app)
 
     return app
+
+
+def validate_settings(settings: Settings) -> None:
+    if settings.app_env.lower() == "production" and settings.admin_password in DEFAULT_ADMIN_PASSWORDS:
+        raise RuntimeError("ADMIN_PASSWORD must be changed before production startup.")
+
+
+def parse_cors_origins(raw_origins: str) -> list[str]:
+    if raw_origins.strip() == "*":
+        return ["*"]
+    origins = [origin.strip() for origin in raw_origins.replace("\n", ",").split(",")]
+    return [origin for origin in origins if origin]
 
 
 def mount_frontend(app: FastAPI) -> None:

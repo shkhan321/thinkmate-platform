@@ -31,7 +31,7 @@ export default function App() {
         </nav>
       </header>
 
-      {health && <div className="notice">{modelModeLabel(health.model_mode)} · Database {health.database}</div>}
+      {health && <div className="notice">{modelModeLabel(health.model_mode)} - Database {health.database}</div>}
 
       {view === "student" ? <StudentPilot /> : <AdminPanel />}
     </main>
@@ -166,7 +166,7 @@ function TaskList({ tasks, onStart }: { tasks: PilotTask[]; onStart: (task: Pilo
         {tasks.map((task) => (
           <article className="task-row" key={task.id}>
             <div>
-              <p className="eyebrow">Task {task.task_number} · {task.condition}</p>
+              <p className="eyebrow">Task {task.task_number} - {task.condition}</p>
               <h3>{task.title}</h3>
               <p>{task.scenario}</p>
             </div>
@@ -216,7 +216,7 @@ function ThinkMateChat({ task, session, onFinish }: { task: PilotTask; session: 
             <div className={`message ${turn.role}`} key={turn.id}>
               <span>{turn.role}</span>
               <p>{turn.content}</p>
-              {turn.move_type && <small>{turn.move_type} · {turn.paul_elder_target} · {turn.bloom_level}</small>}
+              {turn.move_type && <small>{turn.move_type} - {turn.paul_elder_target} - {turn.bloom_level}</small>}
             </div>
           ))}
         </div>

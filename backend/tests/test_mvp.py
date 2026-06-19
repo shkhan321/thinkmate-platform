@@ -1,12 +1,22 @@
 import csv
 import io
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
 from app.services.routing import condition_for
 from app.services.safeguard import apply_safeguard
+
+
+def test_settings_ignore_frontend_only_env_keys(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("VITE_API_URL=http://localhost:8000\nADMIN_PASSWORD=admin-test\n", encoding="utf-8")
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.admin_password == "admin-test"
 
 
 def make_client(tmp_path):
@@ -37,6 +47,39 @@ def test_crossover_condition_routing():
     assert condition_for("A", 2) == "worksheet"
     assert condition_for("B", 1) == "worksheet"
     assert condition_for("B", 2) == "thinkmate"
+
+
+def test_pilot_access_codes_can_be_seeded_without_demo_codes(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        hf_api_token="",
+        consent_version="test-consent-v1",
+        seed_demo_students=False,
+        pilot_access_codes="ENG-A-099:engineering:A;PSY-B-099:psychology:B",
+    )
+    client = TestClient(create_app(settings))
+
+    demo_login = client.post("/api/auth/access-code", json={"access_code": "ENG-A-001"})
+    assert demo_login.status_code == 404
+
+    pilot_login = client.post("/api/auth/access-code", json={"access_code": "ENG-A-099"})
+    assert pilot_login.status_code == 200
+    assert pilot_login.json()["course"] == "engineering"
+    assert pilot_login.json()["sequence"] == "A"
+
+
+def test_production_rejects_default_admin_password(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="change-me",
+        app_env="production",
+        hf_api_token="",
+    )
+
+    with pytest.raises(RuntimeError, match="ADMIN_PASSWORD"):
+        create_app(settings)
 
 
 def test_access_code_consent_and_session_routing(tmp_path):

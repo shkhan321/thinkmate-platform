@@ -10,11 +10,15 @@ class Settings(BaseSettings):
     admin_password: str = "change-me"
     app_env: str = "development"
     consent_version: str = "v1-2026-06-19"
+    seed_demo_students: bool = True
+    pilot_access_codes: str = ""
+    cors_origins: str = "*"
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
 

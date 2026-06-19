@@ -53,8 +53,30 @@ SEED_TASKS = [
 ]
 
 
-def seed_database(db: Session) -> None:
-    for student_data in SEED_STUDENTS:
+def parse_pilot_access_codes(raw_codes: str) -> list[dict]:
+    students = []
+    for raw_entry in raw_codes.replace("\n", ";").split(";"):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+        parts = [part.strip() for part in entry.split(":")]
+        if len(parts) != 3:
+            raise ValueError("PILOT_ACCESS_CODES entries must use ACCESS_CODE:course:sequence format.")
+        access_code, course, sequence = parts
+        sequence = sequence.upper()
+        if not access_code or not course or sequence not in {"A", "B"}:
+            raise ValueError("PILOT_ACCESS_CODES entries need a code, course, and sequence A or B.")
+        students.append({"access_code": access_code, "course": course.lower(), "sequence": sequence})
+    return students
+
+
+def seed_database(db: Session, pilot_students: list[dict] | None = None, include_demo_students: bool = True) -> None:
+    student_rows = []
+    if include_demo_students:
+        student_rows.extend(SEED_STUDENTS)
+    student_rows.extend(pilot_students or [])
+
+    for student_data in student_rows:
         existing = db.scalar(select(Student).where(Student.access_code == student_data["access_code"]))
         if existing is None:
             db.add(Student(**student_data))
