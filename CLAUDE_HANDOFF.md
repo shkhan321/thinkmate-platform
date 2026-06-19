@@ -2,6 +2,19 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Student Site Rebuild (2026-06-19)
+
+The student website was fully rebuilt for a simpler, more professional experience:
+
+- **Sign in is now just a name + course pick** (no access codes for students). The backend assigns a pseudonymous study ID (e.g. `ENG-7F3A2K`) and randomises the crossover sequence (A/B) with balanced randomisation. Endpoint: `POST /api/auth/start` with `{name, course}`.
+- Returning students (same name + course, case/space-insensitive) resume their existing record.
+- The crossover research design is unchanged: consent gate, Sequence A/B routing, ThinkMate vs guided worksheet, Bloom/Paul-Elder tagging, blinded export.
+- **Privacy/blinding preserved:** the student name is saved and included in the full admin export, but the blinded export still hides name, study ID, sequence, and condition for blinded rubric scoring.
+- New UI uses Tailwind CSS v4, is mobile-first, and keeps a discreet "Research team" link to the admin area.
+- `display_name` column added to `students`; an idempotent startup migration (`ensure_schema_migrations` in `backend/app/main.py`) adds it to existing databases (Postgres + SQLite).
+- The legacy `POST /api/auth/access-code` path is kept as an admin/testing backstop.
+- Tasks list now reports per-task `completed` status so the UI can show "Done".
+
 ## Current State
 
 ThinkMate is a deployed student pilot platform for the UAEU Teaching and Learning proposal.

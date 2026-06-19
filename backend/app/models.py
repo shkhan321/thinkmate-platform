@@ -20,6 +20,7 @@ class Student(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     access_code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     course: Mapped[str] = mapped_column(String(32), index=True)
     sequence: Mapped[str] = mapped_column(String(1))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

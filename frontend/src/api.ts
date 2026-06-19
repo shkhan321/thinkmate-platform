@@ -36,6 +36,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () => request<Health>("/health"),
+  start: (name: string, course: string) =>
+    request<Student>("/api/auth/start", {
+      method: "POST",
+      body: JSON.stringify({ name, course })
+    }),
   accessCode: (accessCode: string) =>
     request<Student>("/api/auth/access-code", {
       method: "POST",

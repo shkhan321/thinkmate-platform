@@ -13,6 +13,7 @@ def build_json_export(db: Session, blinded: bool) -> dict:
         item = {"id": student.id, "course": student.course}
         if not blinded:
             item["access_code"] = student.access_code
+            item["display_name"] = student.display_name
             item["sequence"] = student.sequence
         students.append(item)
 
@@ -66,6 +67,7 @@ def build_csv_export(db: Session, blinded: bool) -> str:
     fieldnames = [
         "student_id",
         "access_code",
+        "display_name",
         "course",
         "sequence",
         "session_id",
@@ -87,6 +89,7 @@ def build_csv_export(db: Session, blinded: bool) -> str:
         base = {
             "student_id": session.student_id,
             "access_code": "" if blinded else student.access_code,
+            "display_name": "" if blinded else (student.display_name or ""),
             "course": student.course,
             "sequence": "" if blinded else student.sequence,
             "session_id": session.id,

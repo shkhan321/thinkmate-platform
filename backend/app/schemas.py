@@ -5,12 +5,19 @@ class AccessCodeRequest(BaseModel):
     access_code: str
 
 
+class StartRequest(BaseModel):
+    name: str
+    course: str
+
+
 class AccessCodeResponse(BaseModel):
     student_id: str
     access_code: str
+    display_name: str | None = None
     course: str
     sequence: str
     consent_accepted: bool
+    returning: bool = False
 
 
 class ConsentRequest(BaseModel):
@@ -31,6 +38,7 @@ class TaskResponse(BaseModel):
     scenario: str
     worksheet_steps: list[dict]
     condition: str
+    completed: bool = False
 
 
 class TaskListResponse(BaseModel):

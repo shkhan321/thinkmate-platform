@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   canSubmitWorksheet,
   conditionGuide,
+  courseLabel,
+  firstName,
   modelModeLabel,
   studentProgress,
   taskActionLabel,
@@ -19,19 +21,19 @@ describe("pilot flow helpers", () => {
     expect(canSubmitWorksheet(["claim", "evidence"], { claim: "A", evidence: " " })).toBe(false);
   });
 
-  it("shows a clear model mode label", () => {
+  it("shows a friendly model mode label", () => {
+    expect(modelModeLabel("poe")).toContain("online");
     expect(modelModeLabel("demo")).toContain("Demo");
-    expect(modelModeLabel("huggingface")).toContain("Hugging Face");
   });
 
   it("shows student progress with completed, current, and upcoming steps", () => {
     const progress = studentProgress("tasks");
 
     expect(progress.map((step) => `${step.label}:${step.status}`)).toEqual([
-      "Access code:complete",
-      "Consent:complete",
-      "Choose task:current",
-      "Complete activity:upcoming"
+      "Sign in:complete",
+      "Agree to take part:complete",
+      "Choose activity:current",
+      "Think it through:upcoming"
     ]);
   });
 
@@ -39,12 +41,23 @@ describe("pilot flow helpers", () => {
     const steps = tourSteps();
 
     expect(steps).toHaveLength(4);
-    expect(steps[0].title).toBe("Use your study code");
+    expect(steps[0].title).toBe("Sign in with your name");
     expect(steps[3].body).toContain("saved");
   });
 
   it("explains each condition in student-friendly words", () => {
     expect(conditionGuide("thinkmate")).toContain("chat");
     expect(conditionGuide("worksheet")).toContain("boxes");
+  });
+
+  it("derives a friendly first name with a safe fallback", () => {
+    expect(firstName("Aisha Khalifa")).toBe("Aisha");
+    expect(firstName("   ")).toBe("there");
+    expect(firstName(null)).toBe("there");
+  });
+
+  it("maps course values to readable labels", () => {
+    expect(courseLabel("engineering")).toBe("Engineering");
+    expect(courseLabel("psychology")).toBe("Psychology");
   });
 });

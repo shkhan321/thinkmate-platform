@@ -1,21 +1,20 @@
 # ThinkMate Pilot Platform
 
-ThinkMate is a pilot platform for testing Socratic AI support in UAEU student projects. It is built for the approved CETL pilot, with pseudonymous access codes, consent, two-course task routing, a ThinkMate chat condition, a guided worksheet condition, and research export tools.
+ThinkMate is a pilot platform for testing Socratic AI support in UAEU student projects. It is built for the approved CETL pilot, with simple name-based sign in, consent, two-course task routing, a ThinkMate chat condition, a guided worksheet condition, and research export tools.
 
 This repository now contains a real pilot MVP, not only a project website.
 
 ## What The Pilot Does
 
-- Students enter a study access code such as `ENG-A-001` or `PSY-B-001`.
+- Students sign in with just their **name** and pick their **course** (Engineering or Psychology). No password.
+- Each student is given a pseudonymous study ID (e.g. `ENG-7F3A2K`) and is randomised into a crossover sequence (A or B) using balanced randomisation, so the two arms stay even as students enrol.
+- Returning students (same name + course) resume their existing study record, including their sequence and progress.
 - Students accept the study consent before seeing tasks.
-- Each student gets two tasks from their course.
-- The platform automatically routes each task to either ThinkMate chat or guided worksheet comparison.
-- ThinkMate asks Socratic questions and logs the dialogue.
-- The worksheet condition logs structured student responses.
-- The admin area shows a summary and exports JSON or CSV data.
-- The model layer can run in safe demo mode or call a Hugging Face hosted model when `HF_API_TOKEN` is set.
-- Poe API can be used temporarily by setting `POE_API_KEY` and `POE_MODEL`.
-- Real pilot access codes can be seeded from environment variables without adding student names.
+- Each student gets two tasks from their course; the platform routes each task to either ThinkMate chat or the guided worksheet comparison based on their sequence.
+- ThinkMate asks Socratic questions and logs the dialogue; the worksheet condition logs structured student responses.
+- The admin area shows a summary and exports JSON or CSV. The **blinded** export hides name, study ID, sequence, and condition so rubric scoring stays blind; the full export keeps the student name for the research team.
+- The model layer runs in safe demo mode, or calls Poe (`POE_API_KEY` + `POE_MODEL`) or a Hugging Face model (`HF_API_TOKEN`).
+- A legacy access-code sign in (`POST /api/auth/access-code`) is kept as an admin/testing backstop and for any pre-seeded `PILOT_ACCESS_CODES`.
 
 ## Local Backend
 

@@ -14,14 +14,51 @@ export interface TourStep {
 }
 
 const progressOrder: Array<{ stage: StudentStage; label: string }> = [
-  { stage: "login", label: "Access code" },
-  { stage: "consent", label: "Consent" },
-  { stage: "tasks", label: "Choose task" },
-  { stage: "active", label: "Complete activity" }
+  { stage: "login", label: "Sign in" },
+  { stage: "consent", label: "Agree to take part" },
+  { stage: "tasks", label: "Choose activity" },
+  { stage: "active", label: "Think it through" }
 ];
+
+export const COURSES: Array<{ value: string; label: string; code: string; blurb: string }> = [
+  {
+    value: "engineering",
+    label: "Engineering",
+    code: "AERO / MECH 590",
+    blurb: "Capstone design reasoning"
+  },
+  {
+    value: "psychology",
+    label: "Psychology",
+    code: "PSYC 485",
+    blurb: "Integrated capstone analysis"
+  }
+];
+
+export function courseLabel(course: string): string {
+  return COURSES.find((item) => item.value === course)?.label ?? formatTitle(course);
+}
+
+export function courseCode(course: string): string {
+  return COURSES.find((item) => item.value === course)?.code ?? "";
+}
+
+function formatTitle(value: string): string {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export function firstName(name: string | null | undefined): string {
+  if (!name) return "there";
+  return name.trim().split(/\s+/)[0] || "there";
+}
 
 export function taskActionLabel(condition: Condition): string {
   return condition === "thinkmate" ? "Start discussion" : "Start worksheet";
+}
+
+export function conditionTitle(condition: Condition): string {
+  return condition === "thinkmate" ? "ThinkMate discussion" : "Guided worksheet";
 }
 
 export function canSubmitWorksheet(stepKeys: string[], responses: Record<string, string>): boolean {
@@ -29,13 +66,14 @@ export function canSubmitWorksheet(stepKeys: string[], responses: Record<string,
 }
 
 export function modelModeLabel(mode: ModelMode): string {
-  if (mode === "poe") return "Poe model API enabled";
-  if (mode === "huggingface") return "Hugging Face model API enabled";
-  return "Demo model mode: deterministic Socratic questions";
+  if (mode === "poe") return "AI tutor online";
+  if (mode === "huggingface") return "AI tutor online";
+  return "Demo mode";
 }
 
 export function studentProgress(stage: StudentStage): ProgressStep[] {
-  const currentIndex = stage === "complete" ? progressOrder.length : progressOrder.findIndex((step) => step.stage === stage);
+  const currentIndex =
+    stage === "complete" ? progressOrder.length : progressOrder.findIndex((step) => step.stage === stage);
 
   return progressOrder.map((step, index) => {
     if (index < currentIndex) return { label: step.label, status: "complete" };
@@ -47,20 +85,20 @@ export function studentProgress(stage: StudentStage): ProgressStep[] {
 export function tourSteps(): TourStep[] {
   return [
     {
-      title: "Use your study code",
-      body: "Enter only the access code given by the research team. Do not type your name or student number."
+      title: "Sign in with your name",
+      body: "Just type your name and pick your course. No password, and your work is saved automatically."
     },
     {
-      title: "Accept consent",
-      body: "Read the short notice, then continue only if you agree to take part in the pilot."
+      title: "Agree to take part",
+      body: "Read the short notice and continue only if you are happy to join this learning activity."
     },
     {
-      title: "Complete your activity",
-      body: "You may be asked to use a ThinkMate chat or a guided worksheet. Follow the task shown on screen."
+      title: "Think it through",
+      body: "You will either chat with ThinkMate or fill in a guided worksheet. Answer in your own words."
     },
     {
-      title: "Submit and finish",
-      body: "Your responses are saved under your study code so the research team can analyse the pilot later."
+      title: "Submit and you're done",
+      body: "Your responses are saved so your reasoning can be reviewed later. You can come back any time."
     }
   ];
 }

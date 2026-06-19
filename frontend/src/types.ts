@@ -14,9 +14,11 @@ export interface Health {
 export interface Student {
   student_id: string;
   access_code: string;
+  display_name?: string | null;
   course: string;
   sequence: "A" | "B";
   consent_accepted: boolean;
+  returning?: boolean;
 }
 
 export interface WorksheetStep {
@@ -33,6 +35,7 @@ export interface PilotTask {
   scenario: string;
   worksheet_steps: WorksheetStep[];
   condition: Condition;
+  completed: boolean;
 }
 
 export interface PilotSession {

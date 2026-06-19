@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Consent, Student, Task
+from app.models import Consent, PilotSession, Student, Task
 from app.schemas import TaskListResponse, TaskResponse
 from app.services.routing import condition_for
 
@@ -23,6 +23,14 @@ def list_tasks(student_id: str = Query(...), db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Consent is required before tasks are shown.")
 
     tasks = db.scalars(select(Task).where(Task.course == student.course).order_by(Task.task_number)).all()
+    completed_task_ids = set(
+        db.scalars(
+            select(PilotSession.task_id).where(
+                PilotSession.student_id == student.id,
+                PilotSession.status == "complete",
+            )
+        ).all()
+    )
     return TaskListResponse(
         tasks=[
             TaskResponse(
@@ -33,6 +41,7 @@ def list_tasks(student_id: str = Query(...), db: Session = Depends(get_db)):
                 scenario=task.scenario,
                 worksheet_steps=task.worksheet_steps,
                 condition=condition_for(student.sequence, task.task_number),
+                completed=task.id in completed_task_ids,
             )
             for task in tasks
         ]

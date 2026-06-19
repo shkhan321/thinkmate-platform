@@ -129,6 +129,103 @@ def test_pilot_access_codes_can_be_seeded_without_demo_codes(tmp_path):
     assert pilot_login.json()["sequence"] == "A"
 
 
+def test_name_login_creates_pseudonymous_student(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.post("/api/auth/start", json={"name": "Aisha Khalifa", "course": "engineering"})
+
+    assert response.status_code == 200
+    student = response.json()
+    assert student["display_name"] == "Aisha Khalifa"
+    assert student["course"] == "engineering"
+    assert student["sequence"] in {"A", "B"}
+    assert student["consent_accepted"] is False
+    assert student["returning"] is False
+    # Pseudonymous study ID is generated, not the name.
+    assert student["access_code"].startswith("ENG-")
+    assert "Aisha" not in student["access_code"]
+
+
+def test_name_login_resumes_existing_student(tmp_path):
+    client = make_client(tmp_path)
+
+    first = client.post("/api/auth/start", json={"name": "  Omar  Said ", "course": "psychology"}).json()
+    # Different spacing/case must resolve to the same student.
+    second = client.post("/api/auth/start", json={"name": "omar said", "course": "psychology"}).json()
+
+    assert second["student_id"] == first["student_id"]
+    assert second["access_code"] == first["access_code"]
+    assert second["sequence"] == first["sequence"]
+    assert second["returning"] is True
+    assert first["access_code"].startswith("PSY-")
+
+
+def test_name_login_requires_name_and_valid_course(tmp_path):
+    client = make_client(tmp_path)
+
+    assert client.post("/api/auth/start", json={"name": "   ", "course": "engineering"}).status_code == 422
+    assert client.post("/api/auth/start", json={"name": "Sara", "course": "biology"}).status_code == 422
+
+
+def test_name_login_balances_crossover_sequences(tmp_path):
+    client = make_client(tmp_path)
+
+    sequences = [
+        client.post("/api/auth/start", json={"name": f"Student {index}", "course": "engineering"}).json()["sequence"]
+        for index in range(10)
+    ]
+
+    # Balanced randomisation keeps the two arms even across an even cohort.
+    assert sequences.count("A") == 5
+    assert sequences.count("B") == 5
+
+
+def test_name_login_flows_through_consent_and_tasks(tmp_path):
+    client = make_client(tmp_path)
+
+    student = client.post("/api/auth/start", json={"name": "Mariam", "course": "engineering"}).json()
+    student_id = student["student_id"]
+
+    blocked = client.get("/api/tasks", params={"student_id": student_id})
+    assert blocked.status_code == 403
+
+    client.post("/api/consent", json={"student_id": student_id, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": student_id}).json()["tasks"]
+    assert [task["task_number"] for task in tasks] == [1, 2]
+    assert all(task["completed"] is False for task in tasks)
+
+    # Completing a session is reflected in the task list.
+    session = client.post("/api/sessions", json={"student_id": student_id, "task_id": tasks[0]["id"]}).json()
+    client.post(f"/api/sessions/{session['id']}/complete")
+    refreshed = client.get("/api/tasks", params={"student_id": student_id}).json()["tasks"]
+    assert refreshed[0]["completed"] is True
+    assert refreshed[1]["completed"] is False
+
+
+def test_name_is_exported_but_hidden_when_blinded(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Hessa Noor", "course": "psychology"}).json()
+    client.post("/api/consent", json={"student_id": student["student_id"], "accepted": True})
+
+    full = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "false"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    names = {row.get("display_name") for row in full["students"]}
+    assert "Hessa Noor" in names
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    for row in blinded["students"]:
+        assert "display_name" not in row
+        assert "access_code" not in row
+        assert "sequence" not in row
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

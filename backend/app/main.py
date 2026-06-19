@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from app.api import admin, auth, consent, dialogue, sessions, tasks, worksheet
 from app.config import Settings, get_settings
@@ -25,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.SessionLocal = make_session_factory(app.state.engine)
 
     Base.metadata.create_all(app.state.engine)
+    ensure_schema_migrations(app.state.engine)
     with app.state.SessionLocal() as db:
         seed_database(
             db,
@@ -70,6 +71,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     mount_frontend(app)
 
     return app
+
+
+def ensure_schema_migrations(engine) -> None:
+    """Lightweight, idempotent column adds so existing databases pick up new
+    columns without a full migration tool. Safe on SQLite and PostgreSQL."""
+    inspector = inspect(engine)
+    if not inspector.has_table("students"):
+        return
+    columns = {column["name"] for column in inspector.get_columns("students")}
+    if "display_name" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE students ADD COLUMN display_name VARCHAR(120)"))
 
 
 def validate_settings(settings: Settings) -> None:
