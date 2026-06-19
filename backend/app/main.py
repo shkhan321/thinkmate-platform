@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
-from app.api import admin, auth, consent, dialogue, sessions, tasks, worksheet
+from app.api import admin, auth, consent, dialogue, project, sessions, tasks, worksheet
 from app.config import Settings, get_settings
 from app.database import Base, make_engine, make_session_factory
 from app.seed import parse_pilot_access_codes, seed_database
@@ -44,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(consent.router)
+    app.include_router(project.router)
     app.include_router(tasks.router)
     app.include_router(sessions.router)
     app.include_router(dialogue.router)
@@ -76,13 +77,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 def ensure_schema_migrations(engine) -> None:
     """Lightweight, idempotent column adds so existing databases pick up new
     columns without a full migration tool. Safe on SQLite and PostgreSQL."""
+    student_columns = {
+        "display_name": "VARCHAR(120)",
+        "project_title": "VARCHAR(200)",
+        "project_goal": "TEXT",
+    }
     inspector = inspect(engine)
     if not inspector.has_table("students"):
         return
-    columns = {column["name"] for column in inspector.get_columns("students")}
-    if "display_name" not in columns:
+    existing = {column["name"] for column in inspector.get_columns("students")}
+    missing = {name: ddl for name, ddl in student_columns.items() if name not in existing}
+    if missing:
         with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE students ADD COLUMN display_name VARCHAR(120)"))
+            for name, ddl in missing.items():
+                connection.execute(text(f"ALTER TABLE students ADD COLUMN {name} {ddl}"))
 
 
 def validate_settings(settings: Settings) -> None:

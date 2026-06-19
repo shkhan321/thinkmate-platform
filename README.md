@@ -9,8 +9,10 @@ This repository now contains a real pilot MVP, not only a project website.
 - Students sign in with just their **name** and pick their **course** (Engineering or Psychology). No password.
 - Each student is given a pseudonymous study ID (e.g. `ENG-7F3A2K`) and is randomised into a crossover sequence (A or B) using balanced randomisation, so the two arms stay even as students enrol.
 - Returning students (same name + course) resume their existing study record, including their sequence and progress.
-- Students accept the study consent before seeing tasks.
-- Each student gets two tasks from their course; the platform routes each task to either ThinkMate chat or the guided worksheet comparison based on their sequence.
+- Students accept the study consent, then **describe their own capstone project** (title + what they want to do). ThinkMate works for **any** Mech/Aero or Psychology capstone topic — it is not tied to a fixed scenario. Every Socratic question is anchored to the student's real project.
+- The two activities are reasoning lenses on the student's own project ("Justify a key decision", "Stress-test your project"), which keeps them comparable for blinded scoring while accepting any topic.
+- The platform routes each activity to either ThinkMate chat or the guided worksheet comparison based on the student's sequence.
+- **How it differs from raw ChatGPT:** ThinkMate never gives the answer or writes the work. It runs a fixed pedagogical move sequence (clarify → evidence → assumptions → counter-view → reflect), grounds questions in the student's project, replies briefly in simple English, and shows a live "reasoning map" of how the student's thinking is building.
 - ThinkMate asks Socratic questions and logs the dialogue; the worksheet condition logs structured student responses.
 - The admin area shows a summary and exports JSON or CSV. The **blinded** export hides name, study ID, sequence, and condition so rubric scoring stays blind; the full export keeps the student name for the research team.
 - The model layer runs in safe demo mode, or calls Poe (`POE_API_KEY` + `POE_MODEL`) or a Hugging Face model (`HF_API_TOKEN`).

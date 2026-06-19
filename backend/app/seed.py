@@ -12,45 +12,51 @@ SEED_STUDENTS = [
 ]
 
 
+# Reasoning steps are written about the student's OWN capstone project, so the
+# same matched activities work for any Mech/Aero or Psychology topic while
+# staying comparable for blinded scoring across the crossover.
 COMMON_STEPS = [
-    {"key": "claim", "label": "Claim", "prompt": "State your main claim."},
-    {"key": "evidence", "label": "Evidence", "prompt": "List the evidence that supports your claim."},
-    {"key": "assumption", "label": "Assumption", "prompt": "Identify one assumption in your reasoning."},
-    {"key": "counterview", "label": "Counter-view", "prompt": "Describe a plausible opposing view."},
-    {"key": "reflection", "label": "Reflection", "prompt": "Revise or defend your claim after reflection."},
+    {"key": "claim", "label": "Your claim", "prompt": "State your main claim or decision about your project."},
+    {"key": "evidence", "label": "Your evidence", "prompt": "What evidence or reasons support it?"},
+    {"key": "assumption", "label": "Your assumption", "prompt": "What assumption are you making that could be wrong?"},
+    {"key": "counterview", "label": "A counter-view", "prompt": "What would a smart critic of your project say?"},
+    {"key": "reflection", "label": "Your reflection", "prompt": "After all this, what would you keep or change, and why?"},
 ]
 
 
-SEED_TASKS = [
-    {
-        "course": "engineering",
-        "task_number": 1,
-        "title": "Wing Design Trade-Off",
-        "scenario": "A capstone team must choose between a lighter wing and a more robust wing under cost and safety constraints.",
-        "worksheet_steps": COMMON_STEPS,
-    },
-    {
-        "course": "engineering",
-        "task_number": 2,
-        "title": "Prototype Safety Decision",
-        "scenario": "A prototype test shows borderline vibration behavior before a demonstration to stakeholders.",
-        "worksheet_steps": COMMON_STEPS,
-    },
-    {
-        "course": "psychology",
-        "task_number": 1,
-        "title": "Methodology Critique",
-        "scenario": "A study claims that a phone-use intervention improves attention based on a small pre/post sample.",
-        "worksheet_steps": COMMON_STEPS,
-    },
-    {
-        "course": "psychology",
-        "task_number": 2,
-        "title": "Alternative Interpretation",
-        "scenario": "A survey finds a link between confidence and exam performance, but the causal interpretation is unclear.",
-        "worksheet_steps": COMMON_STEPS,
-    },
-]
+# Engineering and Psychology share the same two reasoning lenses; only the
+# examples in the scenario text are tuned to the discipline. Both are anchored
+# to "your project" so any capstone topic fits.
+ENGINEERING_EXAMPLES = "a design choice, method, material, model, or analysis approach"
+PSYCHOLOGY_EXAMPLES = "a research question, method, measure, sample, or interpretation"
+
+
+def _activities(course: str, examples: str) -> list[dict]:
+    return [
+        {
+            "course": course,
+            "task_number": 1,
+            "title": "Justify a key decision in your project",
+            "scenario": (
+                f"Pick one important decision in your capstone ({examples}) and defend why it is "
+                "the right one. ThinkMate will question your reasoning, not hand you answers."
+            ),
+            "worksheet_steps": COMMON_STEPS,
+        },
+        {
+            "course": course,
+            "task_number": 2,
+            "title": "Stress-test your project",
+            "scenario": (
+                "Look hard at your own capstone for weak spots: the evidence behind it, the "
+                "assumptions you are making, and a strong alternative you should consider."
+            ),
+            "worksheet_steps": COMMON_STEPS,
+        },
+    ]
+
+
+SEED_TASKS = _activities("engineering", ENGINEERING_EXAMPLES) + _activities("psychology", PSYCHOLOGY_EXAMPLES)
 
 
 def parse_pilot_access_codes(raw_codes: str) -> list[dict]:
@@ -90,4 +96,10 @@ def seed_database(db: Session, pilot_students: list[dict] | None = None, include
         )
         if existing is None:
             db.add(Task(**task_data))
+        else:
+            # Keep seeded task content in sync so existing databases pick up
+            # updated activity wording without a manual migration.
+            existing.title = task_data["title"]
+            existing.scenario = task_data["scenario"]
+            existing.worksheet_steps = task_data["worksheet_steps"]
     db.commit()

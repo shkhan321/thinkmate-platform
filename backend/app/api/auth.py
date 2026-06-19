@@ -59,6 +59,8 @@ def start(payload: StartRequest, db: Session = Depends(get_db)):
             display_name=existing.display_name,
             course=existing.course,
             sequence=existing.sequence,
+            project_title=existing.project_title,
+            project_goal=existing.project_goal,
             consent_accepted=_has_consent(db, existing.id),
             returning=True,
         )
@@ -95,5 +97,7 @@ def access_code(payload: AccessCodeRequest, db: Session = Depends(get_db)):
         display_name=student.display_name,
         course=student.course,
         sequence=student.sequence,
+        project_title=student.project_title,
+        project_goal=student.project_goal,
         consent_accepted=_has_consent(db, student.id),
     )

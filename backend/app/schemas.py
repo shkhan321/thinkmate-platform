@@ -10,14 +10,28 @@ class StartRequest(BaseModel):
     course: str
 
 
+class ProjectRequest(BaseModel):
+    student_id: str
+    project_title: str
+    project_goal: str
+
+
 class AccessCodeResponse(BaseModel):
     student_id: str
     access_code: str
     display_name: str | None = None
     course: str
     sequence: str
+    project_title: str | None = None
+    project_goal: str | None = None
     consent_accepted: bool
     returning: bool = False
+
+
+class ProjectResponse(BaseModel):
+    student_id: str
+    project_title: str
+    project_goal: str
 
 
 class ConsentRequest(BaseModel):

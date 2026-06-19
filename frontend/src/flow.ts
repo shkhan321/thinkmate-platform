@@ -1,6 +1,6 @@
 import type { Condition, ModelMode } from "./types";
 
-export type StudentStage = "login" | "consent" | "tasks" | "active" | "complete";
+export type StudentStage = "login" | "consent" | "project" | "tasks" | "active" | "complete";
 export type ProgressStatus = "complete" | "current" | "upcoming";
 
 export interface ProgressStep {
@@ -15,7 +15,8 @@ export interface TourStep {
 
 const progressOrder: Array<{ stage: StudentStage; label: string }> = [
   { stage: "login", label: "Sign in" },
-  { stage: "consent", label: "Agree to take part" },
+  { stage: "consent", label: "Agree" },
+  { stage: "project", label: "Your project" },
   { stage: "tasks", label: "Choose activity" },
   { stage: "active", label: "Think it through" }
 ];
@@ -25,15 +26,37 @@ export const COURSES: Array<{ value: string; label: string; code: string; blurb:
     value: "engineering",
     label: "Engineering",
     code: "AERO / MECH 590",
-    blurb: "Capstone design reasoning"
+    blurb: "Any Mech or Aero capstone project"
   },
   {
     value: "psychology",
     label: "Psychology",
     code: "PSYC 485",
-    blurb: "Integrated capstone analysis"
+    blurb: "Any Psychology capstone project"
   }
 ];
+
+// The five reasoning moves ThinkMate walks a student through. Drives the live
+// "reasoning map" — the simple visual that shows how the thinking is building.
+export interface ReasoningStep {
+  key: string;
+  label: string;
+  moveType: string;
+  hint: string;
+}
+
+export const REASONING_STEPS: ReasoningStep[] = [
+  { key: "clarify", label: "Clarify", moveType: "clarification", hint: "Make your claim clear" },
+  { key: "evidence", label: "Evidence", moveType: "evidence_probe", hint: "Back it with reasons" },
+  { key: "assumption", label: "Assumptions", moveType: "assumption_probe", hint: "Spot what you take for granted" },
+  { key: "counterview", label: "Counter-view", moveType: "counterview", hint: "Face a strong objection" },
+  { key: "reflection", label: "Reflect", moveType: "reflection", hint: "Keep or change your view" }
+];
+
+export function coveredReasoning(moveTypes: Array<string | null | undefined>): Set<string> {
+  const seen = new Set(moveTypes.filter(Boolean) as string[]);
+  return new Set(REASONING_STEPS.filter((step) => seen.has(step.moveType)).map((step) => step.key));
+}
 
 export function courseLabel(course: string): string {
   return COURSES.find((item) => item.value === course)?.label ?? formatTitle(course);

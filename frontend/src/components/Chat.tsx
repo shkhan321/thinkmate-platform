@@ -1,17 +1,21 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { conditionTitle } from "../flow";
+import { REASONING_STEPS, conditionTitle, coveredReasoning } from "../flow";
 import type { PilotSession, PilotTask, Turn } from "../types";
-import { Callout, PedagogyTags } from "./ui";
+import { Callout, PedagogyTags, ReasoningMap } from "./ui";
 import { ChatIcon, LightbulbIcon, SendIcon, SparkIcon } from "./icons";
 
 export function ThinkMateChat({
   task,
   session,
+  projectTitle,
+  projectGoal,
   onFinish
 }: {
   task: PilotTask;
   session: PilotSession;
+  projectTitle?: string | null;
+  projectGoal?: string | null;
   onFinish: () => Promise<void> | void;
 }) {
   const [input, setInput] = useState("");
@@ -21,6 +25,8 @@ export function ThinkMateChat({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const exchanges = Math.ceil(turns.length / 2);
+  const covered = coveredReasoning(turns.filter((t) => t.role === "tutor").map((t) => t.move_type));
+  const currentKey = REASONING_STEPS.find((step) => !covered.has(step.key))?.key ?? null;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -49,7 +55,20 @@ export function ThinkMateChat({
           <ChatIcon className="h-3.5 w-3.5" /> {conditionTitle("thinkmate")}
         </span>
         <h2 className="mt-3 text-lg font-extrabold text-slate-900">{task.title}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-slate-600">{task.scenario}</p>
+
+        {projectTitle ? (
+          <div className="mt-3 rounded-2xl border border-brand-100 bg-brand-50/60 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-600">Your project</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-800">{projectTitle}</p>
+            {projectGoal && <p className="mt-0.5 text-xs text-slate-600">{projectGoal}</p>}
+          </div>
+        ) : (
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">{task.scenario}</p>
+        )}
+
+        <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+          <ReasoningMap covered={covered} currentKey={currentKey} />
+        </div>
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-4">
           <p className="flex items-center gap-2 text-sm font-bold text-slate-800">
@@ -57,7 +76,7 @@ export function ThinkMateChat({
           </p>
           <ul className="mt-2 space-y-1.5 text-sm text-slate-600">
             <li>• Start with your claim or decision.</li>
-            <li>• Explain the evidence or assumption behind it.</li>
+            <li>• Give the reason or evidence behind it.</li>
             <li>• Answer ThinkMate's question before moving on.</li>
           </ul>
         </div>

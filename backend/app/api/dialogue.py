@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.database import get_app_settings, get_db
-from app.models import PilotSession, Task, Turn
+from app.models import PilotSession, Student, Task, Turn
 from app.schemas import DialogueTurnRequest, DialogueTurnResponse
 from app.services.model_adapter import generate_tutor_turn
 from app.services.safeguard import apply_safeguard
@@ -32,6 +32,7 @@ def dialogue_turn(
     task = db.get(Task, session.task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
+    student = db.get(Student, session.student_id)
 
     student_turn = Turn(
         session_id=session.id,
@@ -47,7 +48,15 @@ def dialogue_turn(
         select(func.count()).select_from(Turn).where(Turn.session_id == session.id, Turn.role == "tutor")
     )
     move = move_for_tutor_turn(int(tutor_count or 0))
-    raw_content = generate_tutor_turn(settings, task.title, task.scenario, payload.content, move)
+    raw_content = generate_tutor_turn(
+        settings,
+        task.title,
+        task.scenario,
+        payload.content,
+        move,
+        project_title=(student.project_title or "") if student else "",
+        project_goal=(student.project_goal or "") if student else "",
+    )
     safeguarded = apply_safeguard(raw_content)
     tutor_turn = Turn(
         session_id=session.id,

@@ -2,6 +2,18 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Project-Agnostic + LLM Differentiation (2026-06-19)
+
+ThinkMate is no longer tied to fixed scenarios (it used to be wing-design specific). It now works for **any** Mech/Aero or Psychology capstone:
+
+- After consent, a **project intake** step asks the student their project title and what they want to do (`POST /api/project`; stored as `project_title` / `project_goal` on `students`). Returning students skip it.
+- The two seed activities are now **project-anchored reasoning lenses** ("Justify a key decision in your project", "Stress-test your project") — same Paul-Elder dimensions for blinded-scoring comparability, any topic. `seed_database` now **updates** existing task rows so deployed DBs pick up the new wording.
+- Every tutor question is **grounded in the student's project** (project title + goal are passed into the model prompt in `model_adapter.py`).
+- The tutor system prompt now enforces **brief, simple English, one short question, never answer, never write the student's work, always anchor to their project**.
+- New frontend: a **project intake screen**, a live **"reasoning map"** in the chat (claim → evidence → assumptions → counter-view → reflect, lighting up as the dialogue progresses — the "simple graph"), the project shown in the chat, and a "Why not just ChatGPT?" panel on the landing.
+- New columns `project_title`, `project_goal` added via the same idempotent startup migration; included in the full admin export, hidden in the blinded export.
+- Tests: backend 22 passed, frontend 11 passed.
+
 ## Latest Change — Student Site Rebuild (2026-06-19)
 
 The student website was fully rebuilt for a simpler, more professional experience:

@@ -17,6 +17,8 @@ export interface Student {
   display_name?: string | null;
   course: string;
   sequence: "A" | "B";
+  project_title?: string | null;
+  project_goal?: string | null;
   consent_accepted: boolean;
   returning?: boolean;
 }

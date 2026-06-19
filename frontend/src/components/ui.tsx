@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { studentProgress, tourSteps, type StudentStage } from "../flow";
+import { REASONING_STEPS, studentProgress, tourSteps, type StudentStage } from "../flow";
 import { CheckIcon, CloseIcon, SparkIcon } from "./icons";
 
 export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
@@ -78,6 +78,53 @@ export function PedagogyTags({
     <div className="mt-2 flex flex-wrap gap-1.5">
       {bloom && <span className={`tm-chip ${tone}`}>{capitalize(bloom)}</span>}
       {paulElder && <span className="tm-chip bg-slate-100 text-slate-600">{capitalize(paulElder)}</span>}
+    </div>
+  );
+}
+
+export function ReasoningMap({
+  covered,
+  currentKey
+}: {
+  covered: Set<string>;
+  currentKey: string | null;
+}) {
+  const doneCount = REASONING_STEPS.filter((step) => covered.has(step.key)).length;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-slate-800">Your thinking map</p>
+        <span className="text-xs font-semibold text-brand-600">{doneCount}/{REASONING_STEPS.length}</span>
+      </div>
+      <p className="mt-0.5 text-xs text-slate-500">How your reasoning is building.</p>
+      <ol className="relative mt-3 space-y-3">
+        {REASONING_STEPS.map((step, index) => {
+          const isDone = covered.has(step.key);
+          const isCurrent = !isDone && step.key === currentKey;
+          const dot = isDone
+            ? "bg-brand-600 text-white"
+            : isCurrent
+              ? "bg-brand-50 text-brand-700 ring-2 ring-brand-500"
+              : "bg-white text-slate-300 ring-1 ring-slate-200";
+          const last = index === REASONING_STEPS.length - 1;
+          return (
+            <li key={step.key} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold ${dot}`}>
+                  {isDone ? <CheckIcon className="h-3.5 w-3.5" /> : index + 1}
+                </span>
+                {!last && <span className={`mt-1 w-px flex-1 ${isDone ? "bg-brand-200" : "bg-slate-200"}`} />}
+              </div>
+              <div className="-mt-0.5 pb-1">
+                <p className={`text-sm font-semibold ${isDone || isCurrent ? "text-slate-800" : "text-slate-400"}`}>
+                  {step.label}
+                </p>
+                <p className="text-xs text-slate-400">{step.hint}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

@@ -23,6 +23,8 @@ class Student(Base):
     display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     course: Mapped[str] = mapped_column(String(32), index=True)
     sequence: Mapped[str] = mapped_column(String(1))
+    project_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    project_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     consents: Mapped[list["Consent"]] = relationship(back_populates="student")

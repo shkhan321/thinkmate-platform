@@ -15,6 +15,7 @@ import type { Health, PilotSession, PilotTask, Student } from "./types";
 import { ThinkMateChat } from "./components/Chat";
 import { Worksheet } from "./components/Worksheet";
 import { AdminPanel } from "./components/Admin";
+import { ProjectIntake } from "./components/ProjectIntake";
 import { Callout, QuickTour, Stepper, Wordmark } from "./components/ui";
 import {
   ArrowRightIcon,
@@ -153,14 +154,23 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     setTasks(result.tasks);
   }
 
+  // Route a signed-in student to the right next step: consent -> project -> tasks.
+  async function routeEntry(s: Student) {
+    if (!s.consent_accepted) {
+      setStage("consent");
+      return;
+    }
+    if (!s.project_title) {
+      setStage("project");
+      return;
+    }
+    await loadTasks(s.student_id);
+    setStage("tasks");
+  }
+
   async function resume(saved: Student) {
     try {
-      if (saved.consent_accepted) {
-        await loadTasks(saved.student_id);
-        setStage("tasks");
-      } else {
-        setStage("consent");
-      }
+      await routeEntry(saved);
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
       setStudent(null);
@@ -174,12 +184,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       const result = await api.start(name, course);
       setStudent(result);
       persist(result);
-      if (result.consent_accepted) {
-        await loadTasks(result.student_id);
-        setStage("tasks");
-      } else {
-        setStage("consent");
-      }
+      await routeEntry(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign you in. Please try again.");
     }
@@ -193,10 +198,24 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       const updated = { ...student, consent_accepted: true };
       setStudent(updated);
       persist(updated);
+      await routeEntry(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record your agreement. Please try again.");
+    }
+  }
+
+  async function saveProjectInfo(title: string, goal: string) {
+    if (!student) return;
+    setError("");
+    try {
+      const result = await api.saveProject(student.student_id, title, goal);
+      const updated = { ...student, project_title: result.project_title, project_goal: result.project_goal };
+      setStudent(updated);
+      persist(updated);
       await loadTasks(student.student_id);
       setStage("tasks");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not record your agreement. Please try again.");
+      setError(err instanceof Error ? err.message : "Could not save your project. Please try again.");
     }
   }
 
@@ -245,9 +264,16 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       {error && stage !== "active" && <Callout>{error}</Callout>}
 
       {stage === "consent" && <ConsentScreen student={student} onAccept={acceptConsent} />}
+      {stage === "project" && <ProjectIntake student={student} onSave={saveProjectInfo} error={error} />}
       {stage === "tasks" && <TaskList student={student} tasks={tasks} onStart={startTask} />}
       {stage === "active" && activeTask && session?.condition === "thinkmate" && (
-        <ThinkMateChat task={activeTask} session={session} onFinish={finishSession} />
+        <ThinkMateChat
+          task={activeTask}
+          session={session}
+          projectTitle={student?.project_title}
+          projectGoal={student?.project_goal}
+          onFinish={finishSession}
+        />
       )}
       {stage === "active" && activeTask && session?.condition === "worksheet" && (
         <Worksheet task={activeTask} session={session} onFinish={finishSession} />
@@ -323,21 +349,35 @@ function SignIn({
           </span>
         </h1>
         <p className="mt-4 max-w-md text-lg leading-relaxed text-slate-600">
-          A friendly study partner that asks good questions to sharpen your reasoning. It guides your
-          thinking — it never just hands you the answer.
+          Bring <strong>your own</strong> capstone project. ThinkMate asks sharp questions about it to
+          strengthen your reasoning — it never just hands you the answer.
         </p>
 
         <ul className="mt-6 space-y-3">
-          <Feature icon={<ChatIcon className="h-5 w-5" />} title="Short, guided conversation">
-            Explain your reasoning and ThinkMate asks one question at a time.
+          <Feature icon={<ChatIcon className="h-5 w-5" />} title="About your real project">
+            Tell it what you're building or studying. Every question is about your work.
           </Feature>
-          <Feature icon={<LightbulbIcon className="h-5 w-5" />} title="Built for deeper thinking">
-            Grounded in proven critical-thinking frameworks, not guesswork.
+          <Feature icon={<LightbulbIcon className="h-5 w-5" />} title="Builds your thinking, on a map">
+            Watch your reasoning grow step by step: claim, evidence, assumptions, counter-views.
           </Feature>
-          <Feature icon={<ShieldIcon className="h-5 w-5" />} title="Your work is saved safely">
-            Sign in with just your name. No password to remember.
+          <Feature icon={<ShieldIcon className="h-5 w-5" />} title="Sign in with just your name">
+            No password. Your work is saved automatically.
           </Feature>
         </ul>
+
+        <div className="mt-6 max-w-md rounded-2xl border border-brand-100 bg-white/70 p-4">
+          <p className="text-sm font-bold text-slate-800">Why not just use ChatGPT?</p>
+          <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="font-semibold text-slate-500">ChatGPT</p>
+              <p className="mt-0.5 text-slate-600">Gives you the answer. You stop thinking.</p>
+            </div>
+            <div className="rounded-xl bg-brand-50 p-3">
+              <p className="font-semibold text-brand-700">ThinkMate</p>
+              <p className="mt-0.5 text-slate-700">Makes you find it. Your thinking gets stronger.</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="order-1 lg:order-2">

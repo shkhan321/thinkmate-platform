@@ -51,6 +51,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ student_id: studentId, accepted: true })
     }),
+  saveProject: (studentId: string, projectTitle: string, projectGoal: string) =>
+    request<{ student_id: string; project_title: string; project_goal: string }>("/api/project", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, project_title: projectTitle, project_goal: projectGoal })
+    }),
   tasks: (studentId: string) =>
     request<{ tasks: PilotTask[] }>(`/api/tasks?student_id=${encodeURIComponent(studentId)}`),
   startSession: (studentId: string, taskId: string) =>

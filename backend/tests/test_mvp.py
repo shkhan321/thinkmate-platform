@@ -226,6 +226,83 @@ def test_name_is_exported_but_hidden_when_blinded(tmp_path):
         assert "sequence" not in row
 
 
+def test_project_intake_saves_and_grounds_tutor(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Layla", "course": "engineering"}).json()
+    sid = student["student_id"]
+
+    saved = client.post(
+        "/api/project",
+        json={
+            "student_id": sid,
+            "project_title": "Solar-powered irrigation drone",
+            "project_goal": "decide between two battery layouts",
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["project_title"] == "Solar-powered irrigation drone"
+
+    # Project comes back on the next sign in so intake can be skipped.
+    again = client.post("/api/auth/start", json={"name": "Layla", "course": "engineering"}).json()
+    assert again["project_title"] == "Solar-powered irrigation drone"
+    assert again["project_goal"] == "decide between two battery layouts"
+
+
+def test_project_requires_title_and_goal(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Noor", "course": "psychology"}).json()["student_id"]
+    assert client.post("/api/project", json={"student_id": sid, "project_title": "  ", "project_goal": "x"}).status_code == 422
+    assert client.post("/api/project", json={"student_id": sid, "project_title": "x", "project_goal": "  "}).status_code == 422
+
+
+def test_tutor_prompt_is_anchored_to_student_project():
+    from app.services.model_adapter import _build_prompt
+
+    prompt = _build_prompt(
+        task_title="Justify a key decision in your project",
+        scenario="Defend a choice.",
+        student_content="I will use lithium cells.",
+        move={"move_type": "evidence_probe", "paul_elder_target": "accuracy", "prompt": "What evidence?"},
+        project_title="Solar irrigation drone",
+        project_goal="choose a battery layout",
+    )
+    assert "Solar irrigation drone" in prompt
+    assert "choose a battery layout" in prompt
+
+
+def test_seed_tasks_are_project_agnostic(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Yousef", "course": "engineering"}).json()["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    titles = [t["title"] for t in client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]]
+    assert titles == ["Justify a key decision in your project", "Stress-test your project"]
+
+
+def test_project_is_exported_but_hidden_when_blinded(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Fatima", "course": "engineering"}).json()
+    client.post(
+        "/api/project",
+        json={"student_id": student["student_id"], "project_title": "Recycled composite panel", "project_goal": "test stiffness"},
+    )
+
+    full = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "false"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    assert any(s.get("project_title") == "Recycled composite panel" for s in full["students"])
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    for row in blinded["students"]:
+        assert "project_title" not in row
+        assert "project_goal" not in row
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

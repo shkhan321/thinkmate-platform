@@ -3,6 +3,7 @@ import {
   canSubmitWorksheet,
   conditionGuide,
   courseLabel,
+  coveredReasoning,
   firstName,
   modelModeLabel,
   studentProgress,
@@ -31,7 +32,8 @@ describe("pilot flow helpers", () => {
 
     expect(progress.map((step) => `${step.label}:${step.status}`)).toEqual([
       "Sign in:complete",
-      "Agree to take part:complete",
+      "Agree:complete",
+      "Your project:complete",
       "Choose activity:current",
       "Think it through:upcoming"
     ]);
@@ -59,5 +61,12 @@ describe("pilot flow helpers", () => {
   it("maps course values to readable labels", () => {
     expect(courseLabel("engineering")).toBe("Engineering");
     expect(courseLabel("psychology")).toBe("Psychology");
+  });
+
+  it("tracks which reasoning steps the dialogue has covered", () => {
+    const covered = coveredReasoning(["clarification", "evidence_probe", null]);
+    expect(covered.has("clarify")).toBe(true);
+    expect(covered.has("evidence")).toBe(true);
+    expect(covered.has("assumption")).toBe(false);
   });
 });
