@@ -1,11 +1,12 @@
 export type Condition = "thinkmate" | "worksheet";
-export type ModelMode = "demo" | "huggingface";
+export type ModelMode = "demo" | "huggingface" | "poe";
 
 export interface Health {
   status: string;
   app_env: string;
   database: string;
   model_mode: ModelMode;
+  model_name?: string;
   hf_model: string;
   consent_version: string;
 }

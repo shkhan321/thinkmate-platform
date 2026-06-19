@@ -9,7 +9,7 @@ export function canSubmitWorksheet(stepKeys: string[], responses: Record<string,
 }
 
 export function modelModeLabel(mode: ModelMode): string {
-  return mode === "huggingface"
-    ? "Hugging Face model API enabled"
-    : "Demo model mode: deterministic Socratic questions";
+  if (mode === "poe") return "Poe model API enabled";
+  if (mode === "huggingface") return "Hugging Face model API enabled";
+  return "Demo model mode: deterministic Socratic questions";
 }

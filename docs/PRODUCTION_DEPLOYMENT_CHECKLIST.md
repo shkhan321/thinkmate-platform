@@ -31,6 +31,9 @@ PILOT_ACCESS_CODES=<approved pseudonymous code list>
 CORS_ORIGINS=https://<live-app-domain>
 HF_MODEL=google/gemma-2-2b-it
 HF_API_TOKEN=<optional Hugging Face token>
+POE_API_KEY=<optional Poe API key>
+POE_MODEL=GPT-4o-Mini
+POE_BASE_URL=https://api.poe.com/v1
 ```
 
 `PILOT_ACCESS_CODES` format:

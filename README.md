@@ -14,6 +14,7 @@ This repository now contains a real pilot MVP, not only a project website.
 - The worksheet condition logs structured student responses.
 - The admin area shows a summary and exports JSON or CSV data.
 - The model layer can run in safe demo mode or call a Hugging Face hosted model when `HF_API_TOKEN` is set.
+- Poe API can be used temporarily by setting `POE_API_KEY` and `POE_MODEL`.
 - Real pilot access codes can be seeded from environment variables without adding student names.
 
 ## Local Backend
@@ -66,6 +67,9 @@ Set these Railway variables:
 DATABASE_URL=<Railway PostgreSQL connection string>
 HF_API_TOKEN=<Hugging Face token, optional for demo mode>
 HF_MODEL=google/gemma-2-2b-it
+POE_API_KEY=<Poe API key, optional>
+POE_MODEL=GPT-4o-Mini
+POE_BASE_URL=https://api.poe.com/v1
 ADMIN_PASSWORD=<strong admin password>
 APP_ENV=production
 CONSENT_VERSION=v1-2026-06-19

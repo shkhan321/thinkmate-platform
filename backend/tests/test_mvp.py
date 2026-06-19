@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.services.model_adapter import generate_tutor_turn
 from app.services.routing import condition_for
 from app.services.safeguard import apply_safeguard
 
@@ -25,6 +26,7 @@ def make_client(tmp_path):
         admin_password="admin-test",
         app_env="test",
         hf_api_token="",
+        poe_api_key="",
         consent_version="test-consent-v1",
     )
     return TestClient(create_app(settings))
@@ -40,6 +42,63 @@ def test_health_reports_demo_mode(tmp_path):
     assert payload["status"] == "ok"
     assert payload["model_mode"] == "demo"
     assert payload["database"] == "ok"
+
+
+def test_health_reports_poe_mode_when_poe_key_is_configured(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        poe_api_key="test-poe-key",
+        poe_model="GPT-4o-Mini",
+    )
+    client = TestClient(create_app(settings))
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model_mode"] == "poe"
+    assert payload["model_name"] == "GPT-4o-Mini"
+
+
+def test_poe_adapter_uses_openai_compatible_chat_endpoint(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "What evidence would change your view?"}}]}
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.model_adapter.httpx.post", fake_post)
+    settings = Settings(poe_api_key="test-poe-key", poe_model="GPT-4o-Mini")
+
+    text = generate_tutor_turn(
+        settings,
+        task_title="Wing Design Trade-Off",
+        scenario="Choose between lighter and safer design.",
+        student_content="Lighter is always better.",
+        move={
+            "move_type": "evidence",
+            "paul_elder_target": "evidence",
+            "prompt": "What evidence supports that claim?",
+        },
+    )
+
+    assert text == "What evidence would change your view?"
+    assert captured["url"] == "https://api.poe.com/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer test-poe-key"
+    assert captured["json"]["model"] == "GPT-4o-Mini"
+    assert captured["json"]["messages"][0]["role"] == "system"
 
 
 def test_crossover_condition_routing():

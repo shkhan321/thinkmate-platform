@@ -10,6 +10,7 @@ from app.api import admin, auth, consent, dialogue, sessions, tasks, worksheet
 from app.config import Settings, get_settings
 from app.database import Base, make_engine, make_session_factory
 from app.seed import parse_pilot_access_codes, seed_database
+from app.services.model_adapter import active_model_mode, active_model_name
 
 
 DEFAULT_ADMIN_PASSWORDS = {"", "change-me", "change-this-before-deploying"}
@@ -60,7 +61,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "status": "ok" if database_status == "ok" else "degraded",
             "app_env": active_settings.app_env,
             "database": database_status,
-            "model_mode": "huggingface" if active_settings.hf_api_token else "demo",
+            "model_mode": active_model_mode(active_settings),
+            "model_name": active_model_name(active_settings),
             "hf_model": active_settings.hf_model,
             "consent_version": active_settings.consent_version,
         }
