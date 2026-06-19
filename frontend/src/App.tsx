@@ -1,14 +1,23 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import { canSubmitWorksheet, modelModeLabel, taskActionLabel } from "./flow";
+import {
+  canSubmitWorksheet,
+  conditionGuide,
+  modelModeLabel,
+  studentProgress,
+  taskActionLabel,
+  tourSteps,
+  type StudentStage
+} from "./flow";
 import type { AdminSummary, Health, PilotSession, PilotTask, Student, Turn } from "./types";
 
 type View = "student" | "admin";
-type Stage = "login" | "consent" | "tasks" | "active" | "complete";
+type FinishHandler = () => Promise<void> | void;
 
 export default function App() {
   const [view, setView] = useState<View>("student");
   const [health, setHealth] = useState<Health | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
@@ -17,29 +26,42 @@ export default function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">ThinkMate Pilot</p>
-          <h1>Research MVP</h1>
+        <div className="brand-block">
+          <p className="eyebrow">UAEU Teaching and Learning Pilot</p>
+          <h1>ThinkMate</h1>
+          <p>Guided critical-thinking activities for students.</p>
         </div>
-        <nav className="tabs" aria-label="Main view">
-          <button className={view === "student" ? "active" : ""} onClick={() => setView("student")}>
-            Student
+        <div className="top-actions">
+          <button className="ghost-button" type="button" onClick={() => setTourOpen(true)}>
+            Quick tour
           </button>
-          <button className={view === "admin" ? "active" : ""} onClick={() => setView("admin")}>
-            Admin
-          </button>
-        </nav>
+          <nav className="tabs" aria-label="Main view">
+            <button className={view === "student" ? "active" : ""} onClick={() => setView("student")}>
+              Student
+            </button>
+            <button className={view === "admin" ? "active" : ""} onClick={() => setView("admin")}>
+              Admin
+            </button>
+          </nav>
+        </div>
       </header>
 
-      {health && <div className="notice">{modelModeLabel(health.model_mode)} - Database {health.database}</div>}
+      {health && (
+        <div className="status-strip" aria-label="System status">
+          <span>{modelModeLabel(health.model_mode)}</span>
+          <span>Database {health.database}</span>
+          <span>Consent {health.consent_version}</span>
+        </div>
+      )}
 
-      {view === "student" ? <StudentPilot /> : <AdminPanel />}
+      {view === "student" ? <StudentPilot onOpenTour={() => setTourOpen(true)} /> : <AdminPanel />}
+      {tourOpen && <QuickTour onClose={() => setTourOpen(false)} />}
     </main>
   );
 }
 
-function StudentPilot() {
-  const [stage, setStage] = useState<Stage>("login");
+function StudentPilot({ onOpenTour }: { onOpenTour: () => void }) {
+  const [stage, setStage] = useState<StudentStage>("login");
   const [student, setStudent] = useState<Student | null>(null);
   const [tasks, setTasks] = useState<PilotTask[]>([]);
   const [activeTask, setActiveTask] = useState<PilotTask | null>(null);
@@ -54,7 +76,7 @@ function StudentPilot() {
   async function handleLogin(accessCode: string) {
     setError("");
     try {
-      const result = await api.accessCode(accessCode);
+      const result = await api.accessCode(accessCode.trim());
       setStudent(result);
       if (result.consent_accepted) {
         await loadTasks(result.student_id);
@@ -94,14 +116,22 @@ function StudentPilot() {
 
   async function finishSession() {
     if (!session) return;
-    await api.completeSession(session.id);
-    setStage("complete");
+    setError("");
+    try {
+      await api.completeSession(session.id);
+      setStage("complete");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not finish task");
+    }
   }
 
   return (
-    <section className="panel">
+    <section className="student-flow">
+      <StudentHeader stage={stage} student={student} onOpenTour={onOpenTour} />
+      <StudentProgress stage={stage} />
       {error && <div className="error">{error}</div>}
-      {stage === "login" && <AccessCodeForm onSubmit={handleLogin} />}
+
+      {stage === "login" && <AccessCodeForm onSubmit={handleLogin} onOpenTour={onOpenTour} />}
       {stage === "consent" && <ConsentScreen student={student} onAccept={acceptConsent} />}
       {stage === "tasks" && <TaskList tasks={tasks} onStart={startTask} />}
       {stage === "active" && activeTask && session?.condition === "thinkmate" && (
@@ -110,75 +140,206 @@ function StudentPilot() {
       {stage === "active" && activeTask && session?.condition === "worksheet" && (
         <Worksheet task={activeTask} session={session} onFinish={finishSession} />
       )}
-      {stage === "complete" && (
-        <div className="centered">
-          <h2>Task submitted</h2>
-          <p>Your response has been saved under your study code.</p>
-          <button onClick={() => setStage("tasks")}>Return to tasks</button>
-        </div>
-      )}
+      {stage === "complete" && <CompletionScreen onReturn={() => setStage("tasks")} />}
     </section>
   );
 }
 
-function AccessCodeForm({ onSubmit }: { onSubmit: (code: string) => void }) {
-  const [code, setCode] = useState("");
-  return (
-    <form
-      className="narrow"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit(code);
-      }}
-    >
-      <h2>Enter study access code</h2>
-      <p>Use the pseudonymous code provided by the research team. Do not enter your real name.</p>
-      <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="ENG-A-001" />
-      <button disabled={!code.trim()}>Continue</button>
-    </form>
-  );
-}
+function StudentHeader({
+  stage,
+  student,
+  onOpenTour
+}: {
+  stage: StudentStage;
+  student: Student | null;
+  onOpenTour: () => void;
+}) {
+  const title =
+    stage === "login"
+      ? "Start your study session"
+      : stage === "consent"
+        ? "Review consent"
+        : stage === "tasks"
+          ? "Choose your assigned activity"
+          : stage === "active"
+            ? "Complete the activity"
+            : "Your work is saved";
 
-function ConsentScreen({ student, onAccept }: { student: Student | null; onAccept: () => void }) {
-  return (
-    <div className="narrow">
-      <h2>Consent required</h2>
-      <p>
-        Your interaction will be logged for the ThinkMate teaching-and-learning pilot. The app stores your study code,
-        course, task responses, and dialogue turns. It does not need your name for this MVP.
-      </p>
-      <dl className="facts">
-        <dt>Course</dt>
-        <dd>{student?.course}</dd>
-        <dt>Sequence</dt>
-        <dd>{student?.sequence}</dd>
-      </dl>
-      <button onClick={onAccept}>I agree and want to continue</button>
-    </div>
-  );
-}
+  const subtitle =
+    stage === "login"
+      ? "Use the access code given by your instructor or research team."
+      : stage === "consent"
+        ? "This short step explains what the pilot records before you begin."
+        : stage === "tasks"
+          ? "Complete the activity shown for your assigned sequence."
+          : stage === "active"
+            ? "Answer in your own words. You can submit when your reasoning is complete."
+            : "You may return to your tasks or close this page.";
 
-function TaskList({ tasks, onStart }: { tasks: PilotTask[]; onStart: (task: PilotTask) => void }) {
   return (
-    <div>
-      <h2>Assigned tasks</h2>
-      <div className="task-grid">
-        {tasks.map((task) => (
-          <article className="task-row" key={task.id}>
-            <div>
-              <p className="eyebrow">Task {task.task_number} - {task.condition}</p>
-              <h3>{task.title}</h3>
-              <p>{task.scenario}</p>
-            </div>
-            <button onClick={() => onStart(task)}>{taskActionLabel(task.condition)}</button>
-          </article>
-        ))}
+    <div className="student-hero">
+      <div>
+        <p className="eyebrow">Student area</p>
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      <div className="student-id-panel">
+        <span>{student ? "Signed in as" : "Your session"}</span>
+        <strong>{student ? student.access_code : "Waiting for access code"}</strong>
+        {student && <small>{formatCourse(student.course)} sequence {student.sequence}</small>}
+        <button className="ghost-button compact" type="button" onClick={onOpenTour}>
+          View tour
+        </button>
       </div>
     </div>
   );
 }
 
-function ThinkMateChat({ task, session, onFinish }: { task: PilotTask; session: PilotSession; onFinish: () => void }) {
+function StudentProgress({ stage }: { stage: StudentStage }) {
+  return (
+    <ol className="progress-steps" aria-label="Student progress">
+      {studentProgress(stage).map((step) => (
+        <li className={step.status} key={step.label}>
+          <span>{step.status === "complete" ? "Done" : step.status === "current" ? "Now" : "Next"}</span>
+          <strong>{step.label}</strong>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function QuickTour({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="tour-backdrop" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <section className="tour-panel">
+        <div className="tour-header">
+          <div>
+            <p className="eyebrow">Quick tour</p>
+            <h2 id="tour-title">What you will do</h2>
+          </div>
+          <button className="ghost-button compact" type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="tour-list">
+          {tourSteps().map((step, index) => (
+            <article key={step.title}>
+              <span>{index + 1}</span>
+              <div>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AccessCodeForm({
+  onSubmit,
+  onOpenTour
+}: {
+  onSubmit: (code: string) => void;
+  onOpenTour: () => void;
+}) {
+  const [code, setCode] = useState("");
+  return (
+    <div className="login-layout">
+      <form
+        className="entry-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit(code);
+        }}
+      >
+        <label htmlFor="access-code">Study access code</label>
+        <input
+          id="access-code"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          placeholder="For example: ENG-A-001"
+          autoComplete="off"
+        />
+        <p>Use only your study code. Do not enter your real name, UAEU ID, or email address.</p>
+        <button disabled={!code.trim()}>Continue</button>
+      </form>
+
+      <aside className="orientation-panel">
+        <h3>Before you begin</h3>
+        <ul>
+          <li>This is a short research pilot activity.</li>
+          <li>Your answers should be your own reasoning.</li>
+          <li>The system saves responses under your study code.</li>
+        </ul>
+        <button className="secondary" type="button" onClick={onOpenTour}>
+          See quick tour
+        </button>
+      </aside>
+    </div>
+  );
+}
+
+function ConsentScreen({ student, onAccept }: { student: Student | null; onAccept: () => void }) {
+  return (
+    <section className="consent-layout">
+      <div>
+        <h2>Consent to continue</h2>
+        <p>
+          ThinkMate will save your study code, course, activity responses, and dialogue or worksheet entries. The pilot
+          does not ask for your name on this platform.
+        </p>
+        <ul className="plain-list">
+          <li>Take part only if you agree to the pilot activity.</li>
+          <li>Write your own thinking, not personal or private information.</li>
+          <li>You can ask the research team if anything is unclear before starting.</li>
+        </ul>
+        <button onClick={onAccept}>I agree and want to continue</button>
+      </div>
+      <dl className="facts">
+        <dt>Course</dt>
+        <dd>{student ? formatCourse(student.course) : "Not loaded"}</dd>
+        <dt>Sequence</dt>
+        <dd>{student?.sequence || "Not loaded"}</dd>
+        <dt>Access code</dt>
+        <dd>{student?.access_code || "Not loaded"}</dd>
+      </dl>
+    </section>
+  );
+}
+
+function TaskList({ tasks, onStart }: { tasks: PilotTask[]; onStart: (task: PilotTask) => void }) {
+  return (
+    <section className="task-section">
+      <div className="section-heading">
+        <div>
+          <h2>Your activities</h2>
+          <p>Open the activity assigned to you. The platform will save your work after you submit.</p>
+        </div>
+        <span>{tasks.length} assigned</span>
+      </div>
+      <div className="task-grid">
+        {tasks.map((task) => (
+          <article className="task-row" key={task.id}>
+            <div>
+              <p className="eyebrow">Task {task.task_number}</p>
+              <h3>{task.title}</h3>
+              <p>{task.scenario}</p>
+              <p className="condition-note">{conditionGuide(task.condition)}</p>
+            </div>
+            <div className="task-action">
+              <span>{task.condition === "thinkmate" ? "Discussion" : "Worksheet"}</span>
+              <button onClick={() => onStart(task)}>{taskActionLabel(task.condition)}</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ThinkMateChat({ task, session, onFinish }: { task: PilotTask; session: PilotSession; onFinish: FinishHandler }) {
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
@@ -202,39 +363,67 @@ function ThinkMateChat({ task, session, onFinish }: { task: PilotTask; session: 
 
   return (
     <div className="workspace">
-      <aside>
-        <p className="eyebrow">ThinkMate condition</p>
+      <aside className="activity-brief">
+        <p className="eyebrow">ThinkMate discussion</p>
         <h2>{task.title}</h2>
         <p>{task.scenario}</p>
-        <button className="secondary" onClick={onFinish}>Finish task</button>
+        <div className="brief-box">
+          <strong>How to answer</strong>
+          <ul>
+            <li>Start with your claim or decision.</li>
+            <li>Explain the evidence or assumption behind it.</li>
+            <li>Answer ThinkMate's question before moving on.</li>
+          </ul>
+        </div>
+        <button className="secondary" onClick={() => void onFinish()}>
+          Finish and save
+        </button>
       </aside>
+
       <section className="chat-area">
+        <div className="chat-heading">
+          <div>
+            <h2>Reasoning chat</h2>
+            <p>ThinkMate will ask questions. It will not give you the final answer.</p>
+          </div>
+          <span>{turns.length === 0 ? "Not started" : `${Math.ceil(turns.length / 2)} exchange(s)`}</span>
+        </div>
         {error && <div className="error">{error}</div>}
         <div className="messages">
-          {turns.length === 0 && <p className="empty">Start by stating your claim or first reasoning step.</p>}
+          {turns.length === 0 && (
+            <div className="empty-state">
+              <strong>Start with one clear sentence.</strong>
+              <p>Example: "My claim is that the safer design is better because..."</p>
+            </div>
+          )}
           {turns.map((turn) => (
             <div className={`message ${turn.role}`} key={turn.id}>
-              <span>{turn.role}</span>
+              <span>{turn.role === "tutor" ? "ThinkMate" : "You"}</span>
               <p>{turn.content}</p>
-              {turn.move_type && <small>{turn.move_type} - {turn.paul_elder_target} - {turn.bloom_level}</small>}
+              {turn.move_type && <small>{turn.move_type} | {turn.paul_elder_target} | {turn.bloom_level}</small>}
             </div>
           ))}
         </div>
         <form className="composer" onSubmit={sendTurn}>
-          <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Share your reasoning..." />
-          <button disabled={busy || !input.trim()}>{busy ? "Thinking" : "Send"}</button>
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Type your reasoning here..."
+          />
+          <button disabled={busy || !input.trim()}>{busy ? "Thinking..." : "Send"}</button>
         </form>
       </section>
     </div>
   );
 }
 
-function Worksheet({ task, session, onFinish }: { task: PilotTask; session: PilotSession; onFinish: () => void }) {
+function Worksheet({ task, session, onFinish }: { task: PilotTask; session: PilotSession; onFinish: FinishHandler }) {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const stepKeys = useMemo(() => task.worksheet_steps.map((step) => step.key), [task]);
   const ready = canSubmitWorksheet(stepKeys, responses);
+  const completedCount = stepKeys.filter((key) => (responses[key] || "").trim().length > 0).length;
 
   async function submit() {
     setBusy(true);
@@ -252,25 +441,52 @@ function Worksheet({ task, session, onFinish }: { task: PilotTask; session: Pilo
   }
 
   return (
-    <div>
-      <p className="eyebrow">Guided worksheet condition</p>
-      <h2>{task.title}</h2>
-      <p>{task.scenario}</p>
-      {error && <div className="error">{error}</div>}
-      <div className="worksheet">
-        {task.worksheet_steps.map((step) => (
-          <label key={step.key}>
-            <strong>{step.label}</strong>
-            <span>{step.prompt}</span>
-            <textarea
-              value={responses[step.key] || ""}
-              onChange={(event) => setResponses((current) => ({ ...current, [step.key]: event.target.value }))}
-            />
-          </label>
-        ))}
-      </div>
-      <button disabled={!ready || busy} onClick={submit}>{busy ? "Submitting" : "Submit worksheet"}</button>
+    <div className="workspace">
+      <aside className="activity-brief">
+        <p className="eyebrow">Guided worksheet</p>
+        <h2>{task.title}</h2>
+        <p>{task.scenario}</p>
+        <div className="brief-box">
+          <strong>What to do</strong>
+          <p>Complete each box in your own words. You can submit when all boxes have an answer.</p>
+        </div>
+        <span className="completion-meter">{completedCount} of {stepKeys.length} boxes complete</span>
+      </aside>
+
+      <section className="worksheet-area">
+        <div className="section-heading">
+          <div>
+            <h2>Worksheet responses</h2>
+            <p>{conditionGuide("worksheet")}</p>
+          </div>
+        </div>
+        {error && <div className="error">{error}</div>}
+        <div className="worksheet">
+          {task.worksheet_steps.map((step, index) => (
+            <label key={step.key}>
+              <strong>Step {index + 1}: {step.label}</strong>
+              <span>{step.prompt}</span>
+              <textarea
+                value={responses[step.key] || ""}
+                onChange={(event) => setResponses((current) => ({ ...current, [step.key]: event.target.value }))}
+              />
+            </label>
+          ))}
+        </div>
+        <button disabled={!ready || busy} onClick={submit}>{busy ? "Submitting..." : "Submit worksheet"}</button>
+      </section>
     </div>
+  );
+}
+
+function CompletionScreen({ onReturn }: { onReturn: () => void }) {
+  return (
+    <section className="completion-panel">
+      <span>Saved</span>
+      <h2>Your activity has been submitted</h2>
+      <p>Your response is stored under your study code. You can return to the activity list if another task is assigned.</p>
+      <button onClick={onReturn}>Return to activities</button>
+    </section>
   );
 }
 
@@ -305,12 +521,22 @@ function AdminPanel() {
   }
 
   return (
-    <section className="panel">
-      <h2>Admin export</h2>
-      <p>Use this only for research-team export. Do not share the admin password with students.</p>
+    <section className="admin-panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Research team only</p>
+          <h2>Admin export</h2>
+          <p>Use this area for pilot monitoring and data export. Do not share the admin password with students.</p>
+        </div>
+      </div>
       {error && <div className="error">{error}</div>}
       <div className="admin-controls">
-        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Admin password" />
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Admin password"
+        />
         <label className="check">
           <input type="checkbox" checked={blinded} onChange={(event) => setBlinded(event.target.checked)} />
           Blinded export
@@ -330,4 +556,8 @@ function AdminPanel() {
       {exportText && <textarea className="export-box" value={exportText} readOnly />}
     </section>
   );
+}
+
+function formatCourse(course: string): string {
+  return course.charAt(0).toUpperCase() + course.slice(1);
 }
