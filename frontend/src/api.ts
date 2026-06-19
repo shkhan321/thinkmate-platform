@@ -7,7 +7,11 @@ import type {
   Turn
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+export function resolveApiBase(configuredUrl = import.meta.env.VITE_API_URL): string {
+  return (configuredUrl || "").replace(/\/$/, "");
+}
+
+const API_BASE = resolveApiBase();
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {

@@ -41,6 +41,7 @@ pnpm dev
 ```
 
 Open the local frontend URL shown by Vite. The frontend uses `VITE_API_URL=http://localhost:8000` by default.
+For deployed one-service builds, leave `VITE_API_URL` empty so the browser calls the same Railway domain.
 
 ## One-Service Production Build
 
