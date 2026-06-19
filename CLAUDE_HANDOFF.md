@@ -14,6 +14,7 @@ The student website was fully rebuilt for a simpler, more professional experienc
 - `display_name` column added to `students`; an idempotent startup migration (`ensure_schema_migrations` in `backend/app/main.py`) adds it to existing databases (Postgres + SQLite).
 - The legacy `POST /api/auth/access-code` path is kept as an admin/testing backstop.
 - Tasks list now reports per-task `completed` status so the UI can show "Done".
+- **Live AI fix:** `POE_MODEL` was `Gemma-4-31B`, which is not a working Poe model (returns empty content), so the tutor was silently serving canned fallback questions. Changed to **`Gemma-3-27B`** (verified to return real Socratic questions) and added warning logs in `model_adapter.py` when the model returns empty/errors, so this can never fail silently again. To validate a Poe model before deploying, send one `chat/completions` call and confirm non-empty content.
 
 ## Current State
 
@@ -66,7 +67,7 @@ Important Railway variables already set:
 - `PILOT_ACCESS_CODES`
 - `CORS_ORIGINS=*`
 - `POE_API_KEY`
-- `POE_MODEL=Gemma-4-31B`
+- `POE_MODEL=Gemma-3-27B` (was `Gemma-4-31B`, which is not a working Poe model — it returned empty responses, so the tutor silently used fallback questions. `Gemma-3-27B` is verified to return real Socratic questions.)
 - `POE_BASE_URL=https://api.poe.com/v1`
 
 Do not print, commit, or copy API keys into files. If the Poe key must be changed, set it through Railway secrets, preferably by stdin or Railway UI.
@@ -145,7 +146,7 @@ At handoff, these checks passed:
 - Backend tests: `11 passed`
 - GitHub CI: success for `84dd00a feat: improve student pilot experience`
 - Railway service: `SUCCESS`, not stopped
-- Live `/health`: `status=ok`, `database=ok`, `model_mode=poe`, `model_name=Gemma-4-31B`
+- Live `/health`: `status=ok`, `database=ok`, `model_mode=poe`, `model_name=Gemma-3-27B`
 - Live mobile UI check: no horizontal overflow
 - Live student flow check with sample code `ENG-B-001`: access code to task list works
 

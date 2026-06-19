@@ -1,6 +1,10 @@
+import logging
+
 import httpx
 
 from app.config import Settings
+
+logger = logging.getLogger("thinkmate.model")
 
 
 def _build_prompt(task_title: str, scenario: str, student_content: str, move: dict) -> str:
@@ -82,8 +86,9 @@ def generate_tutor_turn(settings: Settings, task_title: str, scenario: str, stud
             if "Tutor question:" in text:
                 text = text.split("Tutor question:", 1)[-1].strip()
             return text
-    except httpx.HTTPError:
-        pass
+        logger.warning("HF model %s returned empty content; using fallback question.", settings.hf_model)
+    except httpx.HTTPError as error:
+        logger.warning("HF model %s call failed (%s); using fallback question.", settings.hf_model, error)
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
 
 
@@ -112,6 +117,11 @@ def _generate_poe_turn(settings: Settings, prompt: str, move: dict) -> str:
         text = _extract_chat_completion_text(response.json()).strip()
         if text:
             return text
-    except httpx.HTTPError:
-        pass
+        logger.warning(
+            "Poe model %s returned an empty response; using fallback question. "
+            "Check that POE_MODEL is a valid, active Poe model.",
+            settings.poe_model,
+        )
+    except httpx.HTTPError as error:
+        logger.warning("Poe model %s call failed (%s); using fallback question.", settings.poe_model, error)
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
