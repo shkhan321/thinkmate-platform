@@ -152,3 +152,61 @@ def _generate_poe_turn(settings: Settings, prompt: str, move: dict) -> str:
     except httpx.HTTPError as error:
         logger.warning("Poe model %s call failed (%s); using fallback question.", settings.poe_model, error)
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
+
+
+HINT_SYSTEM_PROMPT = (
+    "You help a stuck university student answer ThinkMate's question about THEIR OWN capstone project. "
+    "Give ONE short example reply (max two sentences, simple English) that shows the kind of answer "
+    "expected and gives them a way to start. It is a model to adapt, not a final answer. "
+    "Do not add commentary, headings, or quotation marks."
+)
+
+HINT_FALLBACK = (
+    "Start with one clear sentence about your project, then add one reason or example. "
+    "For instance: “I chose this because …, and … supports it.” Then make it your own."
+)
+
+
+def generate_hint(
+    settings: Settings,
+    question: str,
+    project_title: str = "",
+    project_goal: str = "",
+    last_student_message: str = "",
+) -> str:
+    """Produce a short example reply to model HOW to answer the current question,
+    so a confused student can move forward. Never a finished answer; a starter to
+    adapt. Falls back to a generic sentence starter if no model is available."""
+    user_prompt = (
+        f"Student's project: {project_title or 'not given'}\n"
+        f"What they want to do: {project_goal or 'not given'}\n"
+        f"ThinkMate just asked: {question}\n"
+        f"What the student last said: {last_student_message or '(nothing yet)'}\n"
+        "Write one short example answer the student could adapt:"
+    )
+
+    if settings.poe_api_key:
+        try:
+            response = httpx.post(
+                f"{settings.poe_base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {settings.poe_api_key}"},
+                json={
+                    "model": settings.poe_model,
+                    "messages": [
+                        {"role": "system", "content": HINT_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": 0.4,
+                    "max_tokens": 90,
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            text = _extract_chat_completion_text(response.json()).strip()
+            if text:
+                return text
+            logger.warning("Poe model %s returned an empty hint; using fallback.", settings.poe_model)
+        except httpx.HTTPError as error:
+            logger.warning("Poe hint call failed (%s); using fallback.", error)
+
+    return HINT_FALLBACK

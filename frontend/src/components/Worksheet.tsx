@@ -3,16 +3,18 @@ import { api } from "../api";
 import { canSubmitWorksheet, conditionTitle } from "../flow";
 import type { PilotSession, PilotTask } from "../types";
 import { Callout } from "./ui";
-import { ClipboardIcon } from "./icons";
+import { ArrowLeftIcon, ClipboardIcon } from "./icons";
 
 export function Worksheet({
   task,
   session,
-  onFinish
+  onFinish,
+  onBack
 }: {
   task: PilotTask;
   session: PilotSession;
   onFinish: () => Promise<void> | void;
+  onBack: () => void;
 }) {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -41,6 +43,9 @@ export function Worksheet({
   return (
     <div className="tm-rise grid gap-4 lg:grid-cols-[320px_1fr]">
       <aside className="tm-card h-fit p-5">
+        <button type="button" className="tm-btn-ghost mb-3 !px-3 !py-1.5 text-xs" onClick={onBack}>
+          <ArrowLeftIcon className="h-4 w-4" /> Back to activities
+        </button>
         <span className="tm-chip bg-accent-50 text-accent-600">
           <ClipboardIcon className="h-3.5 w-3.5" /> {conditionTitle("worksheet")}
         </span>
@@ -102,8 +107,11 @@ export function Worksheet({
                   onChange={(event) =>
                     setResponses((current) => ({ ...current, [step.key]: event.target.value }))
                   }
-                  placeholder="Write your answer here…"
+                  placeholder={step.example || "Write your answer here…"}
                 />
+                {step.example && (
+                  <p className="mt-1 pl-10 text-xs text-slate-400">Stuck? {step.example}</p>
+                )}
               </div>
             );
           })}

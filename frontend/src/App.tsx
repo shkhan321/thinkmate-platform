@@ -244,6 +244,13 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     }
   }
 
+  function backToActivities() {
+    setActiveTask(null);
+    setSession(null);
+    setError("");
+    setStage("tasks");
+  }
+
   function signOut() {
     window.localStorage.removeItem(STORAGE_KEY);
     setStudent(null);
@@ -273,10 +280,11 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
           projectTitle={student?.project_title}
           projectGoal={student?.project_goal}
           onFinish={finishSession}
+          onBack={backToActivities}
         />
       )}
       {stage === "active" && activeTask && session?.condition === "worksheet" && (
-        <Worksheet task={activeTask} session={session} onFinish={finishSession} />
+        <Worksheet task={activeTask} session={session} onFinish={finishSession} onBack={backToActivities} />
       )}
       {stage === "complete" && <CompletionScreen tasks={tasks} onReturn={() => setStage("tasks")} />}
     </div>

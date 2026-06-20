@@ -103,6 +103,14 @@ class DialogueTurnResponse(BaseModel):
     tutor_turn: TurnResponse
 
 
+class HintRequest(BaseModel):
+    session_id: str
+
+
+class HintResponse(BaseModel):
+    hint: str
+
+
 class WorksheetResponseRequest(BaseModel):
     session_id: str
     step_key: str

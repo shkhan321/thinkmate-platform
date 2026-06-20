@@ -3,25 +3,29 @@ import { api } from "../api";
 import { REASONING_STEPS, conditionTitle, coveredReasoning } from "../flow";
 import type { PilotSession, PilotTask, Turn } from "../types";
 import { Callout, PedagogyTags, ReasoningMap } from "./ui";
-import { ChatIcon, LightbulbIcon, SendIcon, SparkIcon } from "./icons";
+import { ArrowLeftIcon, ChatIcon, LightbulbIcon, SendIcon, SparkIcon } from "./icons";
 
 export function ThinkMateChat({
   task,
   session,
   projectTitle,
   projectGoal,
-  onFinish
+  onFinish,
+  onBack
 }: {
   task: PilotTask;
   session: PilotSession;
   projectTitle?: string | null;
   projectGoal?: string | null;
   onFinish: () => Promise<void> | void;
+  onBack: () => void;
 }) {
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [hint, setHint] = useState("");
+  const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const exchanges = Math.ceil(turns.length / 2);
@@ -41,10 +45,25 @@ export function ThinkMateChat({
       const response = await api.dialogueTurn(session.id, input);
       setTurns((current) => [...current, response.student_turn, response.tutor_turn]);
       setInput("");
+      setHint("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send your message. Please try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function getHint() {
+    if (hintLoading) return;
+    setHintLoading(true);
+    setError("");
+    try {
+      const response = await api.dialogueHint(session.id);
+      setHint(response.hint);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load a suggestion. Please try again.");
+    } finally {
+      setHintLoading(false);
     }
   }
 
@@ -90,7 +109,7 @@ export function ThinkMateChat({
       </aside>
 
       <section className="tm-card flex h-[32rem] flex-col p-0 sm:h-[34rem]">
-        <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 text-white">
               <SparkIcon className="h-5 w-5" />
@@ -100,6 +119,9 @@ export function ThinkMateChat({
               <p className="text-xs text-slate-500">Asks questions — never gives the answer</p>
             </div>
           </div>
+          <button type="button" className="tm-btn-ghost !px-3 !py-1.5 text-xs" onClick={onBack}>
+            <ArrowLeftIcon className="h-4 w-4" /> Back
+          </button>
         </header>
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
@@ -130,6 +152,27 @@ export function ThinkMateChat({
               <Callout>{error}</Callout>
             </div>
           )}
+
+          {hint && (
+            <div className="mb-3 rounded-2xl border border-accent-200 bg-accent-50/70 p-3">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-accent-700">
+                <LightbulbIcon className="h-3.5 w-3.5" /> Example to get you started — then make it your own
+              </p>
+              <p className="mt-1 text-sm text-slate-700">{hint}</p>
+            </div>
+          )}
+
+          {turns.length > 0 && !hint && (
+            <button
+              type="button"
+              onClick={getHint}
+              disabled={hintLoading}
+              className="mb-2 text-xs font-semibold text-accent-700 hover:text-accent-600 disabled:text-slate-400"
+            >
+              {hintLoading ? "Thinking of an example…" : "Stuck? See a suggested reply"}
+            </button>
+          )}
+
           <form className="flex items-end gap-2" onSubmit={sendTurn}>
             <textarea
               value={input}

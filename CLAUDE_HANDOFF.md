@@ -2,6 +2,13 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Back navigation + "Stuck?" hints (2026-06-19)
+
+- Both the worksheet and the ThinkMate chat now have a **Back to activities** control (previously a student could get stuck inside an activity).
+- A confused student can ask for help: the chat has an optional **"Stuck? See a suggested reply"** button (`POST /api/dialogue/hint`) that returns a short *example to adapt* — a starter grounded in the student's project, never a finished answer (`generate_hint` in `model_adapter.py`, with a generic sentence-starter fallback). Hints are on-demand only (no token cost unless used) and are not logged as dialogue turns.
+- Each worksheet step now carries an `example` sentence-starter, shown as the textarea placeholder and a "Stuck? e.g. …" hint line (added to `COMMON_STEPS`; picked up by the seed upsert).
+- Tests: backend 24 passed, frontend 11 passed.
+
 ## Latest Change — Project-Agnostic + LLM Differentiation (2026-06-19)
 
 ThinkMate is no longer tied to fixed scenarios (it used to be wing-design specific). It now works for **any** Mech/Aero or Psychology capstone:

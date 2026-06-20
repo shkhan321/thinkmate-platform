@@ -27,6 +27,7 @@ export interface WorksheetStep {
   key: string;
   label: string;
   prompt: string;
+  example?: string;
 }
 
 export interface PilotTask {

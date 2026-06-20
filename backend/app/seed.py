@@ -16,11 +16,36 @@ SEED_STUDENTS = [
 # same matched activities work for any Mech/Aero or Psychology topic while
 # staying comparable for blinded scoring across the crossover.
 COMMON_STEPS = [
-    {"key": "claim", "label": "Your claim", "prompt": "State your main claim or decision about your project."},
-    {"key": "evidence", "label": "Your evidence", "prompt": "What evidence or reasons support it?"},
-    {"key": "assumption", "label": "Your assumption", "prompt": "What assumption are you making that could be wrong?"},
-    {"key": "counterview", "label": "A counter-view", "prompt": "What would a smart critic of your project say?"},
-    {"key": "reflection", "label": "Your reflection", "prompt": "After all this, what would you keep or change, and why?"},
+    {
+        "key": "claim",
+        "label": "Your claim",
+        "prompt": "State your main claim or decision about your project.",
+        "example": "e.g. “For my project I decided to … because it best meets my main goal.”",
+    },
+    {
+        "key": "evidence",
+        "label": "Your evidence",
+        "prompt": "What evidence or reasons support it?",
+        "example": "e.g. “The main reasons are …, and … backs this up.”",
+    },
+    {
+        "key": "assumption",
+        "label": "Your assumption",
+        "prompt": "What assumption are you making that could be wrong?",
+        "example": "e.g. “I am assuming that …. If that turned out wrong, then …”",
+    },
+    {
+        "key": "counterview",
+        "label": "A counter-view",
+        "prompt": "What would a smart critic of your project say?",
+        "example": "e.g. “Someone might argue that … because …”",
+    },
+    {
+        "key": "reflection",
+        "label": "Your reflection",
+        "prompt": "After all this, what would you keep or change, and why?",
+        "example": "e.g. “I would keep … but change … because …”",
+    },
 ]
 
 

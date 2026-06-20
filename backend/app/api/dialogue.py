@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.database import get_app_settings, get_db
 from app.models import PilotSession, Student, Task, Turn
-from app.schemas import DialogueTurnRequest, DialogueTurnResponse
-from app.services.model_adapter import generate_tutor_turn
+from app.schemas import DialogueTurnRequest, DialogueTurnResponse, HintRequest, HintResponse
+from app.services.model_adapter import generate_hint, generate_tutor_turn
 from app.services.safeguard import apply_safeguard
 from app.services.socratic import move_for_tutor_turn
 
@@ -73,3 +73,39 @@ def dialogue_turn(
     db.refresh(student_turn)
     db.refresh(tutor_turn)
     return DialogueTurnResponse(student_turn=student_turn, tutor_turn=tutor_turn)
+
+
+@router.post("/hint", response_model=HintResponse)
+def dialogue_hint(
+    payload: HintRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
+    """An optional, on-demand example reply for a stuck student. It models HOW
+    to answer the current question, anchored to the student's project — a
+    starter to adapt, never a finished answer."""
+    session = db.get(PilotSession, payload.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    student = db.get(Student, session.student_id)
+
+    last_tutor = db.scalar(
+        select(Turn)
+        .where(Turn.session_id == session.id, Turn.role == "tutor")
+        .order_by(Turn.turn_number.desc())
+    )
+    last_student = db.scalar(
+        select(Turn)
+        .where(Turn.session_id == session.id, Turn.role == "student")
+        .order_by(Turn.turn_number.desc())
+    )
+    question = last_tutor.content if last_tutor else "What is your main claim about your project, and why?"
+
+    hint = generate_hint(
+        settings,
+        question=question,
+        project_title=(student.project_title or "") if student else "",
+        project_goal=(student.project_goal or "") if student else "",
+        last_student_message=last_student.content if last_student else "",
+    )
+    return HintResponse(hint=hint)

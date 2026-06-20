@@ -303,6 +303,34 @@ def test_project_is_exported_but_hidden_when_blinded(tmp_path):
         assert "project_goal" not in row
 
 
+def test_dialogue_hint_returns_a_starter(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Huda", "course": "engineering"}).json()
+    sid = student["student_id"]
+    client.post(
+        "/api/project",
+        json={"student_id": sid, "project_title": "Quiet drone propeller", "project_goal": "lower the noise"},
+    )
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "I will use a five-blade propeller."})
+
+    hint = client.post("/api/dialogue/hint", json={"session_id": session_id})
+    assert hint.status_code == 200
+    assert len(hint.json()["hint"].strip()) > 0
+
+
+def test_worksheet_steps_include_examples(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Rashid", "course": "engineering"}).json()["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    steps = tasks[0]["worksheet_steps"]
+    assert all(step.get("example") for step in steps)
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

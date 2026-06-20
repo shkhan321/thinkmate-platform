@@ -72,6 +72,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ session_id: sessionId, content })
     }),
+  dialogueHint: (sessionId: string) =>
+    request<{ hint: string }>("/api/dialogue/hint", {
+      method: "POST",
+      body: JSON.stringify({ session_id: sessionId })
+    }),
   worksheetResponse: (sessionId: string, stepKey: string, prompt: string, response: string) =>
     request<{ id: string }>("/api/worksheet/response", {
       method: "POST",
