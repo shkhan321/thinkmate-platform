@@ -4,9 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Consent, PilotSession, Student, Task
-from app.schemas import CompleteSessionResponse, SessionResponse, StartSessionRequest
+from app.config import Settings
+from app.database import get_app_settings, get_db
+from app.models import Consent, PilotSession, Student, Task, Turn, WorksheetResponse
+from app.schemas import (
+    CompleteSessionResponse,
+    SessionResponse,
+    SessionSummaryResponse,
+    StartSessionRequest,
+)
+from app.services.model_adapter import generate_session_summary
 from app.services.routing import condition_for
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -48,3 +55,44 @@ def complete_session(session_id: str, db: Session = Depends(get_db)):
     session.completed_at = datetime.now(timezone.utc)
     db.commit()
     return CompleteSessionResponse(id=session.id, status=session.status)
+
+
+@router.get("/{session_id}/summary", response_model=SessionSummaryResponse)
+def session_summary(
+    session_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
+    """A takeaway the student can keep and reuse in their capstone. For a
+    ThinkMate dialogue it is an AI brief of the student's OWN reasoning. For the
+    worksheet it is a plain, non-AI recap of their answers — this keeps the
+    non-AI control condition uncontaminated."""
+    session = db.get(PilotSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    student = db.get(Student, session.student_id)
+
+    if session.condition == "worksheet":
+        rows = db.scalars(
+            select(WorksheetResponse)
+            .where(WorksheetResponse.session_id == session.id)
+            .order_by(WorksheetResponse.created_at)
+        ).all()
+        if not rows:
+            return SessionSummaryResponse(kind="plain", summary="You have not saved any answers for this worksheet yet.")
+        recap = "\n\n".join(f"{row.prompt}\n{row.response}" for row in rows)
+        return SessionSummaryResponse(kind="plain", summary=recap)
+
+    turns = db.scalars(
+        select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
+    ).all()
+    transcript = "\n".join(
+        f"{'S' if turn.role == 'student' else 'T'}: {turn.content}" for turn in turns
+    )
+    summary = generate_session_summary(
+        settings,
+        project_title=(student.project_title or "") if student else "",
+        project_goal=(student.project_goal or "") if student else "",
+        transcript=transcript,
+    )
+    return SessionSummaryResponse(kind="ai", summary=summary)

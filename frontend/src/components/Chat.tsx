@@ -127,9 +127,9 @@ export function ThinkMateChat({
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
           {turns.length === 0 && (
             <div className="mx-auto max-w-md rounded-2xl border border-dashed border-brand-200 bg-brand-50/60 p-5 text-center">
-              <p className="font-bold text-slate-800">Start with one clear sentence</p>
+              <p className="font-bold text-slate-800">Start with one clear sentence about your project</p>
               <p className="mt-1 text-sm text-slate-600">
-                For example: &ldquo;My claim is that the safer design is better because&hellip;&rdquo;
+                For example: &ldquo;My main decision is &hellip; because &hellip;&rdquo;
               </p>
             </div>
           )}

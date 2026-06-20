@@ -23,6 +23,7 @@ import {
   CheckIcon,
   ClipboardIcon,
   CompassIcon,
+  CopyIcon,
   LightbulbIcon,
   ShieldIcon,
   SparkIcon
@@ -128,6 +129,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   const [activeTask, setActiveTask] = useState<PilotTask | null>(null);
   const [session, setSession] = useState<PilotSession | null>(null);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
 
   // Resume a saved session on reload so students never lose their place.
   useEffect(() => {
@@ -179,7 +181,9 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   }
 
   async function handleStart(name: string, course: string) {
+    if (pending) return;
     setError("");
+    setPending(true);
     try {
       const result = await api.start(name, course);
       setStudent(result);
@@ -187,12 +191,15 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       await routeEntry(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign you in. Please try again.");
+    } finally {
+      setPending(false);
     }
   }
 
   async function acceptConsent() {
-    if (!student) return;
+    if (!student || pending) return;
     setError("");
+    setPending(true);
     try {
       await api.consent(student.student_id);
       const updated = { ...student, consent_accepted: true };
@@ -201,12 +208,15 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       await routeEntry(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not record your agreement. Please try again.");
+    } finally {
+      setPending(false);
     }
   }
 
   async function saveProjectInfo(title: string, goal: string) {
-    if (!student) return;
+    if (!student || pending) return;
     setError("");
+    setPending(true);
     try {
       const result = await api.saveProject(student.student_id, title, goal);
       const updated = { ...student, project_title: result.project_title, project_goal: result.project_goal };
@@ -216,12 +226,15 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       setStage("tasks");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your project. Please try again.");
+    } finally {
+      setPending(false);
     }
   }
 
   async function startTask(task: PilotTask) {
-    if (!student) return;
+    if (!student || pending) return;
     setError("");
+    setPending(true);
     try {
       const newSession = await api.startSession(student.student_id, task.id);
       setActiveTask(task);
@@ -229,6 +242,8 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       setStage("active");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start this activity. Please try again.");
+    } finally {
+      setPending(false);
     }
   }
 
@@ -262,7 +277,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   }
 
   if (stage === "login") {
-    return <SignIn onStart={handleStart} onOpenTour={onOpenTour} error={error} />;
+    return <SignIn onStart={handleStart} onOpenTour={onOpenTour} error={error} pending={pending} />;
   }
 
   return (
@@ -270,9 +285,11 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       <SignedInBar student={student} stage={stage} onSignOut={signOut} />
       {error && stage !== "active" && <Callout>{error}</Callout>}
 
-      {stage === "consent" && <ConsentScreen student={student} onAccept={acceptConsent} />}
-      {stage === "project" && <ProjectIntake student={student} onSave={saveProjectInfo} error={error} />}
-      {stage === "tasks" && <TaskList student={student} tasks={tasks} onStart={startTask} />}
+      {stage === "consent" && <ConsentScreen student={student} onAccept={acceptConsent} pending={pending} />}
+      {stage === "project" && (
+        <ProjectIntake student={student} onSave={saveProjectInfo} error={error} pending={pending} />
+      )}
+      {stage === "tasks" && <TaskList student={student} tasks={tasks} onStart={startTask} pending={pending} />}
       {stage === "active" && activeTask && session?.condition === "thinkmate" && (
         <ThinkMateChat
           task={activeTask}
@@ -286,7 +303,9 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       {stage === "active" && activeTask && session?.condition === "worksheet" && (
         <Worksheet task={activeTask} session={session} onFinish={finishSession} onBack={backToActivities} />
       )}
-      {stage === "complete" && <CompletionScreen tasks={tasks} onReturn={() => setStage("tasks")} />}
+      {stage === "complete" && (
+        <CompletionScreen session={session} tasks={tasks} onReturn={() => setStage("tasks")} />
+      )}
     </div>
   );
 }
@@ -329,11 +348,13 @@ function SignedInBar({
 function SignIn({
   onStart,
   onOpenTour,
-  error
+  error,
+  pending
 }: {
   onStart: (name: string, course: string) => void;
   onOpenTour: () => void;
   error: string;
+  pending: boolean;
 }) {
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
@@ -439,8 +460,8 @@ function SignIn({
             })}
           </div>
 
-          <button className="tm-btn-primary mt-6 w-full" disabled={!ready}>
-            Continue <ArrowRightIcon className="h-5 w-5" />
+          <button className="tm-btn-primary mt-6 w-full" disabled={!ready || pending}>
+            {pending ? "Signing you in…" : <>Continue <ArrowRightIcon className="h-5 w-5" /></>}
           </button>
 
           <button
@@ -470,7 +491,15 @@ function Feature({ icon, title, children }: { icon: React.ReactNode; title: stri
   );
 }
 
-function ConsentScreen({ student, onAccept }: { student: Student | null; onAccept: () => void }) {
+function ConsentScreen({
+  student,
+  onAccept,
+  pending
+}: {
+  student: Student | null;
+  onAccept: () => void;
+  pending: boolean;
+}) {
   return (
     <section className="tm-card tm-rise mx-auto max-w-2xl p-6 sm:p-8">
       <span className="tm-chip bg-brand-50 text-brand-700">
@@ -508,8 +537,8 @@ function ConsentScreen({ student, onAccept }: { student: Student | null; onAccep
         </dl>
       )}
 
-      <button className="tm-btn-primary mt-6 w-full sm:w-auto" onClick={onAccept}>
-        I agree — let&rsquo;s continue <ArrowRightIcon className="h-5 w-5" />
+      <button className="tm-btn-primary mt-6 w-full sm:w-auto" onClick={onAccept} disabled={pending}>
+        {pending ? "One moment…" : <>I agree — let&rsquo;s continue <ArrowRightIcon className="h-5 w-5" /></>}
       </button>
     </section>
   );
@@ -518,11 +547,13 @@ function ConsentScreen({ student, onAccept }: { student: Student | null; onAccep
 function TaskList({
   student,
   tasks,
-  onStart
+  onStart,
+  pending
 }: {
   student: Student | null;
   tasks: PilotTask[];
   onStart: (task: PilotTask) => void;
+  pending: boolean;
 }) {
   const remaining = tasks.filter((task) => !task.completed).length;
   return (
@@ -578,9 +609,10 @@ function TaskList({
               <button
                 className={task.completed ? "tm-btn-ghost mt-4 w-full" : "tm-btn-primary mt-4 w-full"}
                 onClick={() => onStart(task)}
+                disabled={pending}
               >
-                {task.completed ? "Open again" : taskActionLabel(task.condition)}
-                {!task.completed && <ArrowRightIcon className="h-5 w-5" />}
+                {pending ? "Opening…" : task.completed ? "Open again" : taskActionLabel(task.condition)}
+                {!task.completed && !pending && <ArrowRightIcon className="h-5 w-5" />}
               </button>
             </article>
           );
@@ -590,22 +622,112 @@ function TaskList({
   );
 }
 
-function CompletionScreen({ tasks, onReturn }: { tasks: PilotTask[]; onReturn: () => void }) {
+function CompletionScreen({
+  session,
+  tasks,
+  onReturn
+}: {
+  session: PilotSession | null;
+  tasks: PilotTask[];
+  onReturn: () => void;
+}) {
   const remaining = tasks.filter((task) => !task.completed).length;
+  const [summary, setSummary] = useState("");
+  const [kind, setKind] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    setFailed(false);
+    api
+      .sessionSummary(session.id)
+      .then((result) => {
+        if (!active) return;
+        setSummary(result.summary);
+        setKind(result.kind);
+      })
+      .catch(() => active && setFailed(true))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  const isAi = kind === "ai";
+  const takeawayTitle = isAi ? "Your thinking brief" : "Your worksheet answers";
+  const takeawayHint = isAi
+    ? "A short summary of your own reasoning. Paste it into your capstone notes or report."
+    : "Your saved answers, ready to copy into your capstone notes.";
+
   return (
-    <section className="tm-card tm-rise mx-auto max-w-xl p-8 text-center">
-      <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-        <CheckIcon className="h-8 w-8" />
-      </span>
-      <h2 className="mt-4 text-2xl font-extrabold text-slate-900">Nicely done — your work is saved</h2>
-      <p className="mt-2 text-slate-600">
-        {remaining > 0
-          ? "You have one more activity waiting whenever you are ready."
-          : "That was your last activity. Thank you for taking part!"}
-      </p>
-      <button className="tm-btn-primary mt-6" onClick={onReturn}>
-        {remaining > 0 ? "Back to my activities" : "View my activities"}
-      </button>
+    <section className="tm-rise mx-auto max-w-xl space-y-4">
+      <div className="tm-card p-7 text-center">
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+          <CheckIcon className="h-8 w-8" />
+        </span>
+        <h2 className="mt-4 text-2xl font-extrabold text-slate-900">Nicely done — your work is saved</h2>
+        <p className="mt-2 text-slate-600">Here is something to take with you.</p>
+      </div>
+
+      <div className="tm-card p-5 text-left">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-extrabold text-slate-900">
+              <LightbulbIcon className="h-4 w-4 text-accent-600" /> {takeawayTitle}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">{takeawayHint}</p>
+          </div>
+          {!loading && !failed && summary && (
+            <button type="button" className="tm-btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={copy}>
+              <CopyIcon className="h-4 w-4" /> {copied ? "Copied!" : "Copy"}
+            </button>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-2xl bg-slate-50 p-4">
+          {loading ? (
+            <p className="flex items-center gap-2 text-sm text-slate-500">
+              <SparkIcon className="h-4 w-4 animate-pulse text-brand-500" />
+              {isAi || !kind ? "Putting together your thinking brief…" : "Loading your answers…"}
+            </p>
+          ) : failed ? (
+            <p className="text-sm text-slate-600">
+              We couldn&rsquo;t build your takeaway just now — but your work is safely saved. You can scroll back
+              over your answers any time.
+            </p>
+          ) : (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{summary}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="tm-card p-5 text-center">
+        <p className="text-sm text-slate-600">
+          {remaining > 0
+            ? "You have one more activity waiting whenever you are ready."
+            : "That was your last activity. Thank you for taking part!"}
+        </p>
+        <button className="tm-btn-primary mt-3" onClick={onReturn}>
+          {remaining > 0 ? "Back to my activities" : "View my activities"}
+        </button>
+      </div>
     </section>
   );
 }

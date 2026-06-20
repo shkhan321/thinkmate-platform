@@ -2,6 +2,15 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Student takeaway + loading states (2026-06-19)
+
+First-principles UX pass. The core gap: a student finished an activity and walked away with **nothing usable** (data was saved only for researchers).
+
+- **Takeaway on completion** (`GET /api/sessions/{id}/summary`): for a ThinkMate dialogue, an **AI "thinking brief"** of the student's OWN reasoning (claim / strongest points / what to strengthen) they can copy into their capstone. For the worksheet it is a **plain non-AI recap** of their own answers — deliberately no AI, so the non-AI control condition stays uncontaminated (`kind: "ai" | "plain"`). Completion screen shows it with a Copy button + loading/error states.
+- **Loading states** added to every async student action (sign in, consent, save project, start activity) via a shared `pending` flag — prevents double-submits and the "is it broken?" feeling on slow networks.
+- Fixed a project-agnostic copy leftover (chat empty-state example no longer mentions "design").
+- Tests: backend 26 passed, frontend 11 passed.
+
 ## Latest Change — Reliable model (GLM-5) + Poe retry (2026-06-19)
 
 - `POE_MODEL` is now **`GLM-5`**. `Gemma-3-27B` became unreliable on Poe (consistent read-timeouts → tutor fell back to canned questions). Reliability test (3 calls each, live key): **GLM-5 3/3**, GLM-4.6 3/3, Gemini-2.5-Flash 3/3, GPT-4o-Mini 3/3; **Gemma-3-27B 0/3 (timeouts)**, Claude-Haiku-3.5 0/3 (500), GLM-4-Plus 404. GLM-5 also gives the sharpest project-aware Socratic questions.

@@ -79,6 +79,11 @@ class CompleteSessionResponse(BaseModel):
     status: str
 
 
+class SessionSummaryResponse(BaseModel):
+    kind: str  # "ai" for ThinkMate dialogues, "plain" for the worksheet recap
+    summary: str
+
+
 class DialogueTurnRequest(BaseModel):
     session_id: str
     content: str

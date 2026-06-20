@@ -331,6 +331,46 @@ def test_worksheet_steps_include_examples(tmp_path):
     assert all(step.get("example") for step in steps)
 
 
+def test_thinkmate_session_summary_is_ai_kind(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Salim", "course": "engineering"}).json()
+    sid = student["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "Quiet drone", "project_goal": "cut noise"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "I will use five-blade props to cut noise."})
+    client.post(f"/api/sessions/{session_id}/complete")
+
+    summary = client.get(f"/api/sessions/{session_id}/summary")
+    assert summary.status_code == 200
+    assert summary.json()["kind"] == "ai"
+    assert len(summary.json()["summary"].strip()) > 0
+
+
+def test_worksheet_session_summary_is_plain_recap_no_ai(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Dana", "course": "psychology"}).json()
+    sid = student["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "Sleep study", "project_goal": "pick a method"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+    client.post(
+        "/api/worksheet/response",
+        json={"session_id": session_id, "step_key": "claim", "prompt": "State your claim.", "response": "A diary study fits best."},
+    )
+
+    summary = client.get(f"/api/sessions/{session_id}/summary")
+    assert summary.status_code == 200
+    # The worksheet recap must be a plain echo of the student's own answer (no AI),
+    # so the non-AI control condition stays uncontaminated.
+    assert summary.json()["kind"] == "plain"
+    assert "A diary study fits best." in summary.json()["summary"]
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

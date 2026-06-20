@@ -7,11 +7,13 @@ import { ArrowRightIcon, SparkIcon } from "./icons";
 export function ProjectIntake({
   student,
   onSave,
-  error
+  error,
+  pending
 }: {
   student: Student | null;
   onSave: (title: string, goal: string) => void;
   error: string;
+  pending: boolean;
 }) {
   const [title, setTitle] = useState(student?.project_title ?? "");
   const [goal, setGoal] = useState(student?.project_goal ?? "");
@@ -79,8 +81,8 @@ export function ProjectIntake({
           </p>
         </div>
 
-        <button className="tm-btn-primary w-full sm:w-auto" disabled={!ready}>
-          Start thinking <ArrowRightIcon className="h-5 w-5" />
+        <button className="tm-btn-primary w-full sm:w-auto" disabled={!ready || pending}>
+          {pending ? "Setting up…" : <>Start thinking <ArrowRightIcon className="h-5 w-5" /></>}
         </button>
       </form>
     </section>

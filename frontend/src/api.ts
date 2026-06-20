@@ -67,6 +67,8 @@ export const api = {
     request<{ id: string; status: string }>(`/api/sessions/${sessionId}/complete`, {
       method: "POST"
     }),
+  sessionSummary: (sessionId: string) =>
+    request<{ kind: string; summary: string }>(`/api/sessions/${sessionId}/summary`),
   dialogueTurn: (sessionId: string, content: string) =>
     request<{ student_turn: Turn; tutor_turn: Turn }>("/api/dialogue/turn", {
       method: "POST",

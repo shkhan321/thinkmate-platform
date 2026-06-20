@@ -202,3 +202,41 @@ def generate_hint(
         logger.warning("Poe hint fell back for model %s.", settings.poe_model)
 
     return HINT_FALLBACK
+
+
+SUMMARY_SYSTEM_PROMPT = (
+    "You write a short 'thinking brief' from a student's OWN words in a Socratic dialogue about their "
+    "capstone project, so they can reuse it in their report. Use ONLY what the student said — never add "
+    "new facts, opinions, or answers. Write in simple English using exactly these three labelled lines:\n"
+    "Your claim: <one sentence>\n"
+    "Your strongest points: <one short line, or two separated by '; '>\n"
+    "To strengthen next: <one short line on what is still open, based on the questions asked>\n"
+    "Keep the whole thing under 90 words. No preamble."
+)
+
+
+def generate_session_summary(
+    settings: Settings,
+    project_title: str,
+    project_goal: str,
+    transcript: str,
+) -> str:
+    """A short brief of the student's OWN reasoning from a ThinkMate dialogue,
+    something they can keep and paste into their capstone. Reflects what they
+    said; never adds content. Falls back to a gentle prompt if no model."""
+    user_prompt = (
+        f"Student's project: {project_title or 'not given'}\n"
+        f"What they want to do: {project_goal or 'not given'}\n\n"
+        f"Dialogue (S = student, T = tutor):\n{transcript}\n\n"
+        "Write the student's thinking brief now:"
+    )
+    if settings.poe_api_key and transcript.strip():
+        text = _poe_chat(settings, SUMMARY_SYSTEM_PROMPT, user_prompt, max_tokens=180, temperature=0.3)
+        if text:
+            return text
+        logger.warning("Poe summary fell back for model %s.", settings.poe_model)
+    return (
+        "We could not build your brief automatically this time. "
+        "Look back at your messages above and note your main claim, your best reason, "
+        "and the one question you still need to answer."
+    )
