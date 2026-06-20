@@ -67,8 +67,15 @@ export const api = {
     request<{ id: string; status: string }>(`/api/sessions/${sessionId}/complete`, {
       method: "POST"
     }),
+  saveAnswer: (sessionId: string, answer: string) =>
+    request<{ id: string; final_answer: string }>(`/api/sessions/${sessionId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer })
+    }),
   sessionSummary: (sessionId: string) =>
-    request<{ kind: string; summary: string }>(`/api/sessions/${sessionId}/summary`),
+    request<{ kind: string; summary: string; final_answer: string | null }>(
+      `/api/sessions/${sessionId}/summary`
+    ),
   dialogueTurn: (sessionId: string, content: string) =>
     request<{ student_turn: Turn; tutor_turn: Turn }>("/api/dialogue/turn", {
       method: "POST",

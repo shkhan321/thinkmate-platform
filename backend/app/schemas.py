@@ -82,6 +82,16 @@ class CompleteSessionResponse(BaseModel):
 class SessionSummaryResponse(BaseModel):
     kind: str  # "ai" for ThinkMate dialogues, "plain" for the worksheet recap
     summary: str
+    final_answer: str | None = None
+
+
+class AnswerRequest(BaseModel):
+    answer: str
+
+
+class AnswerResponse(BaseModel):
+    id: str
+    final_answer: str
 
 
 class DialogueTurnRequest(BaseModel):

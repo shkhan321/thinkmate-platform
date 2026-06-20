@@ -65,6 +65,7 @@ class PilotSession(Base):
     task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
     condition: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(32), default="in_progress")
+    final_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

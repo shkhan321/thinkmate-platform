@@ -1,6 +1,6 @@
 import type { Condition, ModelMode } from "./types";
 
-export type StudentStage = "login" | "consent" | "project" | "tasks" | "active" | "complete";
+export type StudentStage = "login" | "consent" | "project" | "tasks" | "active" | "wrapup" | "complete";
 export type ProgressStatus = "complete" | "current" | "upcoming";
 
 export interface ProgressStep {
@@ -64,6 +64,19 @@ export function courseLabel(course: string): string {
 
 export function courseCode(course: string): string {
   return COURSES.find((item) => item.value === course)?.code ?? "";
+}
+
+export function projectExamples(course: string): { title: string; goal: string } {
+  if (course === "psychology") {
+    return {
+      title: "e.g. Does sleep quality affect students' exam scores?",
+      goal: "e.g. Decide whether to use a survey or a lab experiment"
+    };
+  }
+  return {
+    title: "e.g. A drone arm that folds for storage",
+    goal: "e.g. Decide which hinge design is strong but still light"
+  };
 }
 
 function formatTitle(value: string): string {

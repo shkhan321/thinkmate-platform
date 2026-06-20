@@ -26,6 +26,7 @@ def build_json_export(db: Session, blinded: bool) -> dict:
             "student_id": session.student_id,
             "task_id": session.task_id,
             "status": session.status,
+            "final_answer": session.final_answer,
         }
         if not blinded:
             item["condition"] = session.condition

@@ -69,7 +69,7 @@ export function ThinkMateChat({
 
   return (
     <div className="tm-rise grid gap-4 lg:grid-cols-[320px_1fr]">
-      <aside className="tm-card h-fit p-5">
+      <aside className="tm-card order-2 h-fit p-5 lg:order-1">
         <span className="tm-chip bg-brand-50 text-brand-700">
           <ChatIcon className="h-3.5 w-3.5" /> {conditionTitle("thinkmate")}
         </span>
@@ -108,7 +108,7 @@ export function ThinkMateChat({
         </p>
       </aside>
 
-      <section className="tm-card flex h-[32rem] flex-col p-0 sm:h-[34rem]">
+      <section className="tm-card order-1 flex h-[32rem] flex-col p-0 sm:h-[34rem] lg:order-2">
         <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 text-white">

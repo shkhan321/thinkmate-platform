@@ -247,7 +247,20 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     }
   }
 
+  // Worksheet finishes straight away (its reflection box is the student's answer).
+  // A ThinkMate chat goes to a wrap-up step where the student writes their own
+  // improved answer before finishing.
   async function finishSession() {
+    if (!session) return;
+    if (session.condition === "thinkmate") {
+      setError("");
+      setStage("wrapup");
+      return;
+    }
+    await completeAndReturn();
+  }
+
+  async function completeAndReturn() {
     if (!session) return;
     setError("");
     try {
@@ -257,6 +270,26 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your work. Please try again.");
     }
+  }
+
+  async function finalizeWithAnswer(answer: string) {
+    if (!session || pending) return;
+    setError("");
+    setPending(true);
+    try {
+      await api.saveAnswer(session.id, answer);
+      await api.completeSession(session.id);
+      if (student) await loadTasks(student.student_id);
+      setStage("complete");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save your answer. Please try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function finalizeSkip() {
+    void completeAndReturn();
   }
 
   function backToActivities() {
@@ -285,7 +318,9 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       <SignedInBar student={student} stage={stage} onSignOut={signOut} />
       {error && stage !== "active" && <Callout>{error}</Callout>}
 
-      {stage === "consent" && <ConsentScreen student={student} onAccept={acceptConsent} pending={pending} />}
+      {stage === "consent" && (
+        <ConsentScreen student={student} onAccept={acceptConsent} onDecline={signOut} pending={pending} />
+      )}
       {stage === "project" && (
         <ProjectIntake student={student} onSave={saveProjectInfo} error={error} pending={pending} />
       )}
@@ -301,7 +336,17 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
         />
       )}
       {stage === "active" && activeTask && session?.condition === "worksheet" && (
-        <Worksheet task={activeTask} session={session} onFinish={finishSession} onBack={backToActivities} />
+        <Worksheet
+          task={activeTask}
+          session={session}
+          projectTitle={student?.project_title}
+          projectGoal={student?.project_goal}
+          onFinish={finishSession}
+          onBack={backToActivities}
+        />
+      )}
+      {stage === "wrapup" && (
+        <WrapUp onSave={finalizeWithAnswer} onSkip={finalizeSkip} pending={pending} error={error} />
       )}
       {stage === "complete" && (
         <CompletionScreen session={session} tasks={tasks} onReturn={() => setStage("tasks")} />
@@ -494,12 +539,15 @@ function Feature({ icon, title, children }: { icon: React.ReactNode; title: stri
 function ConsentScreen({
   student,
   onAccept,
+  onDecline,
   pending
 }: {
   student: Student | null;
   onAccept: () => void;
+  onDecline: () => void;
   pending: boolean;
 }) {
+  const [declined, setDeclined] = useState(false);
   return (
     <section className="tm-card tm-rise mx-auto max-w-2xl p-6 sm:p-8">
       <span className="tm-chip bg-brand-50 text-brand-700">
@@ -531,15 +579,36 @@ function ConsentScreen({
             <dd className="font-bold text-slate-900">{courseLabel(student.course)}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-slate-500">Your study ID</dt>
+            <dt className="font-semibold text-slate-500">Your saved-work code</dt>
             <dd className="font-bold text-slate-900">{student.access_code}</dd>
           </div>
         </dl>
       )}
 
-      <button className="tm-btn-primary mt-6 w-full sm:w-auto" onClick={onAccept} disabled={pending}>
-        {pending ? "One moment…" : <>I agree — let&rsquo;s continue <ArrowRightIcon className="h-5 w-5" /></>}
-      </button>
+      {declined ? (
+        <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+          <p className="text-sm text-slate-700">
+            That&rsquo;s completely fine — taking part is your choice. You can simply close this page; nothing is
+            saved. If you change your mind, sign in again any time.
+          </p>
+          <button className="tm-btn-ghost mt-3" type="button" onClick={onDecline}>
+            Back to start
+          </button>
+        </div>
+      ) : (
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button className="tm-btn-primary w-full sm:w-auto" onClick={onAccept} disabled={pending}>
+            {pending ? "One moment…" : <>I agree — let&rsquo;s continue <ArrowRightIcon className="h-5 w-5" /></>}
+          </button>
+          <button
+            className="text-sm font-semibold text-slate-500 hover:text-brand-600 sm:ml-2"
+            type="button"
+            onClick={() => setDeclined(true)}
+          >
+            I&rsquo;d rather not take part
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -556,6 +625,7 @@ function TaskList({
   pending: boolean;
 }) {
   const remaining = tasks.filter((task) => !task.completed).length;
+  const firstIncompleteId = tasks.find((task) => !task.completed)?.id;
   return (
     <section className="tm-rise space-y-4">
       <div className="flex items-end justify-between gap-3">
@@ -565,7 +635,7 @@ function TaskList({
           </h2>
           <p className="mt-1 text-slate-600">
             {remaining > 0
-              ? "Here are your activities. Open the one you want to do next."
+              ? "You have two short activities about your own project. They use different styles on purpose — one is a chat with ThinkMate, the other a self-guided worksheet. Start with Activity 1."
               : "You have completed all your activities. Thank you!"}
           </p>
         </div>
@@ -590,10 +660,14 @@ function TaskList({
                   {isChat ? <ChatIcon className="h-3.5 w-3.5" /> : <ClipboardIcon className="h-3.5 w-3.5" />}
                   {conditionTitle(task.condition)}
                 </span>
-                {task.completed && (
+                {task.completed ? (
                   <span className="tm-chip bg-emerald-50 text-emerald-700">
                     <CheckIcon className="h-3.5 w-3.5" /> Done
                   </span>
+                ) : (
+                  task.id === firstIncompleteId && (
+                    <span className="tm-chip bg-brand-600 text-white">Start here</span>
+                  )
                 )}
               </div>
 
@@ -622,6 +696,56 @@ function TaskList({
   );
 }
 
+function WrapUp({
+  onSave,
+  onSkip,
+  pending,
+  error
+}: {
+  onSave: (answer: string) => void;
+  onSkip: () => void;
+  pending: boolean;
+  error: string;
+}) {
+  const [answer, setAnswer] = useState("");
+  const ready = answer.trim().length > 0;
+  return (
+    <section className="tm-card tm-rise mx-auto max-w-2xl p-6 sm:p-8">
+      <span className="tm-chip bg-brand-50 text-brand-700">
+        <CheckIcon className="h-3.5 w-3.5" /> Last step
+      </span>
+      <h2 className="mt-3 text-2xl font-extrabold text-slate-900">Now, write your answer</h2>
+      <p className="mt-2 text-slate-600">
+        You&rsquo;ve thought it through with ThinkMate. In your own words, what&rsquo;s your answer or
+        decision now? This is the part you keep — writing it yourself is how it sticks.
+      </p>
+
+      {error && (
+        <div className="mt-4">
+          <Callout>{error}</Callout>
+        </div>
+      )}
+
+      <textarea
+        className="tm-input mt-4 min-h-[7rem] resize-y"
+        value={answer}
+        onChange={(event) => setAnswer(event.target.value)}
+        placeholder="In one or two sentences: my answer is… because…"
+        autoFocus
+      />
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button className="tm-btn-primary" onClick={() => ready && onSave(answer)} disabled={!ready || pending}>
+          {pending ? "Saving…" : <>Save &amp; finish <ArrowRightIcon className="h-5 w-5" /></>}
+        </button>
+        <button className="tm-btn-ghost" onClick={onSkip} disabled={pending} type="button">
+          Finish without writing
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CompletionScreen({
   session,
   tasks,
@@ -634,6 +758,7 @@ function CompletionScreen({
   const remaining = tasks.filter((task) => !task.completed).length;
   const [summary, setSummary] = useState("");
   const [kind, setKind] = useState<string>("");
+  const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -652,6 +777,7 @@ function CompletionScreen({
         if (!active) return;
         setSummary(result.summary);
         setKind(result.kind);
+        setFinalAnswer(result.final_answer);
       })
       .catch(() => active && setFailed(true))
       .finally(() => active && setLoading(false));
@@ -660,9 +786,11 @@ function CompletionScreen({
     };
   }, [session]);
 
+  const clipboardText = finalAnswer ? `My answer: ${finalAnswer}\n\n${summary}` : summary;
+
   async function copy() {
     try {
-      await navigator.clipboard.writeText(summary);
+      await navigator.clipboard.writeText(clipboardText);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -685,6 +813,17 @@ function CompletionScreen({
         <h2 className="mt-4 text-2xl font-extrabold text-slate-900">Nicely done — your work is saved</h2>
         <p className="mt-2 text-slate-600">Here is something to take with you.</p>
       </div>
+
+      {finalAnswer && (
+        <div className="tm-card border-2 border-brand-200 p-5 text-left">
+          <p className="flex items-center gap-1.5 text-sm font-extrabold text-brand-700">
+            <CheckIcon className="h-4 w-4" /> Your answer
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-base font-medium leading-relaxed text-slate-800">
+            {finalAnswer}
+          </p>
+        </div>
+      )}
 
       <div className="tm-card p-5 text-left">
         <div className="flex items-center justify-between gap-3">

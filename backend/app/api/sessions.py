@@ -8,6 +8,8 @@ from app.config import Settings
 from app.database import get_app_settings, get_db
 from app.models import Consent, PilotSession, Student, Task, Turn, WorksheetResponse
 from app.schemas import (
+    AnswerRequest,
+    AnswerResponse,
     CompleteSessionResponse,
     SessionResponse,
     SessionSummaryResponse,
@@ -57,6 +59,23 @@ def complete_session(session_id: str, db: Session = Depends(get_db)):
     return CompleteSessionResponse(id=session.id, status=session.status)
 
 
+@router.post("/{session_id}/answer", response_model=AnswerResponse)
+def save_final_answer(session_id: str, payload: AnswerRequest, db: Session = Depends(get_db)):
+    """Store the student's own improved answer at the end of a ThinkMate
+    dialogue. This is the point of the tool — the student articulates the
+    conclusion themselves, and it becomes a clean reasoning artifact for
+    scoring."""
+    session = db.get(PilotSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    answer = payload.answer.strip()
+    if not answer:
+        raise HTTPException(status_code=422, detail="Please write your answer, or skip this step.")
+    session.final_answer = answer
+    db.commit()
+    return AnswerResponse(id=session.id, final_answer=session.final_answer)
+
+
 @router.get("/{session_id}/summary", response_model=SessionSummaryResponse)
 def session_summary(
     session_id: str,
@@ -81,7 +100,7 @@ def session_summary(
         if not rows:
             return SessionSummaryResponse(kind="plain", summary="You have not saved any answers for this worksheet yet.")
         recap = "\n\n".join(f"{row.prompt}\n{row.response}" for row in rows)
-        return SessionSummaryResponse(kind="plain", summary=recap)
+        return SessionSummaryResponse(kind="plain", summary=recap, final_answer=session.final_answer)
 
     turns = db.scalars(
         select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
@@ -89,10 +108,12 @@ def session_summary(
     transcript = "\n".join(
         f"{'S' if turn.role == 'student' else 'T'}: {turn.content}" for turn in turns
     )
+    if session.final_answer:
+        transcript += f"\nS (final answer): {session.final_answer}"
     summary = generate_session_summary(
         settings,
         project_title=(student.project_title or "") if student else "",
         project_goal=(student.project_goal or "") if student else "",
         transcript=transcript,
     )
-    return SessionSummaryResponse(kind="ai", summary=summary)
+    return SessionSummaryResponse(kind="ai", summary=summary, final_answer=session.final_answer)

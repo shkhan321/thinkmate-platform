@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { courseLabel, firstName } from "../flow";
+import { courseLabel, firstName, projectExamples } from "../flow";
 import type { Student } from "../types";
 import { Callout } from "./ui";
 import { ArrowRightIcon, SparkIcon } from "./icons";
@@ -18,6 +18,7 @@ export function ProjectIntake({
   const [title, setTitle] = useState(student?.project_title ?? "");
   const [goal, setGoal] = useState(student?.project_goal ?? "");
   const ready = title.trim().length > 0 && goal.trim().length > 0;
+  const examples = projectExamples(student?.course ?? "engineering");
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -59,7 +60,7 @@ export function ProjectIntake({
             className="tm-input mt-1.5"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. A drone arm that folds for storage"
+            placeholder={examples.title}
             maxLength={200}
           />
         </div>
@@ -73,7 +74,7 @@ export function ProjectIntake({
             className="tm-input mt-1.5 min-h-[5rem] resize-y"
             value={goal}
             onChange={(event) => setGoal(event.target.value)}
-            placeholder="e.g. Decide which hinge design is strong enough but still light"
+            placeholder={examples.goal}
             maxLength={2000}
           />
           <p className="mt-1.5 text-xs text-slate-400">

@@ -371,6 +371,48 @@ def test_worksheet_session_summary_is_plain_recap_no_ai(tmp_path):
     assert "A diary study fits best." in summary.json()["summary"]
 
 
+def test_student_final_answer_is_saved_and_returned_and_exported(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Tariq", "course": "engineering"}).json()
+    sid = student["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "Quiet drone", "project_goal": "cut noise"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "Five-blade props cut noise."})
+
+    answer = client.post(
+        f"/api/sessions/{session_id}/answer",
+        json={"answer": "My answer: a five-blade propeller is the best trade-off for noise and thrust."},
+    )
+    assert answer.status_code == 200
+    assert "five-blade" in answer.json()["final_answer"]
+
+    # Empty answer is rejected so the student writes something or skips on the client.
+    assert client.post(f"/api/sessions/{session_id}/answer", json={"answer": "   "}).status_code == 422
+
+    summary = client.get(f"/api/sessions/{session_id}/summary").json()
+    assert summary["final_answer"] and "five-blade" in summary["final_answer"]
+
+    export = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "false"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    assert any("five-blade" in (s.get("final_answer") or "") for s in export["sessions"])
+
+
+def test_scenario_text_is_condition_neutral(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Reem", "course": "engineering"}).json()["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    # A task can be delivered as either condition, so its scenario must not promise ThinkMate.
+    for task in tasks:
+        assert "ThinkMate" not in task["scenario"]
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

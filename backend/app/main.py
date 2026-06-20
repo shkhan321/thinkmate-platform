@@ -77,20 +77,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 def ensure_schema_migrations(engine) -> None:
     """Lightweight, idempotent column adds so existing databases pick up new
     columns without a full migration tool. Safe on SQLite and PostgreSQL."""
-    student_columns = {
-        "display_name": "VARCHAR(120)",
-        "project_title": "VARCHAR(200)",
-        "project_goal": "TEXT",
+    table_columns = {
+        "students": {
+            "display_name": "VARCHAR(120)",
+            "project_title": "VARCHAR(200)",
+            "project_goal": "TEXT",
+        },
+        "sessions": {
+            "final_answer": "TEXT",
+        },
     }
     inspector = inspect(engine)
-    if not inspector.has_table("students"):
-        return
-    existing = {column["name"] for column in inspector.get_columns("students")}
-    missing = {name: ddl for name, ddl in student_columns.items() if name not in existing}
-    if missing:
-        with engine.begin() as connection:
-            for name, ddl in missing.items():
-                connection.execute(text(f"ALTER TABLE students ADD COLUMN {name} {ddl}"))
+    with engine.begin() as connection:
+        for table, columns in table_columns.items():
+            if not inspector.has_table(table):
+                continue
+            existing = {column["name"] for column in inspector.get_columns(table)}
+            for name, ddl in columns.items():
+                if name not in existing:
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def validate_settings(settings: Settings) -> None:

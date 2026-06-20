@@ -63,8 +63,8 @@ def _activities(course: str, examples: str) -> list[dict]:
             "task_number": 1,
             "title": "Justify a key decision in your project",
             "scenario": (
-                f"Pick one important decision in your capstone ({examples}) and defend why it is "
-                "the right one. ThinkMate will question your reasoning, not hand you answers."
+                f"Pick one important decision in your capstone ({examples}) and build the case for "
+                "why it is the right one."
             ),
             "worksheet_steps": COMMON_STEPS,
         },

@@ -2,6 +2,19 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Reviewer pass: write-your-answer + mobile + fixes (2026-06-19)
+
+External-reviewer walkthrough of the whole student flow, then fixes:
+
+- **Write-your-answer step** after a ThinkMate chat (new `wrapup` stage): the student writes their own improved answer; it is saved (`POST /api/sessions/{id}/answer`, new `sessions.final_answer` column) and **leads the takeaway** ("Your answer" above the AI brief). Makes "build toward YOUR answer" active, and gives researchers a clean scored artifact (in export + fed into the AI brief). Skippable.
+- **Bug fixed:** Activity 1's seed scenario promised "ThinkMate will question your reasoning…" even when that activity is delivered as the non-AI worksheet (sequence B). Scenarios are now condition-neutral.
+- **Mobile:** chat & worksheet now render the conversation/boxes **before** the sidebar (`order` utilities), so the input is above the fold on phones (it was below before).
+- Tasks screen now explains the two activity styles + a "Start here" cue on the first one.
+- Course-aware project placeholders (Psychology vs Engineering); worksheet now shows the student's project; worksheet Back warns before discarding typed answers.
+- Consent: renamed "study ID" → "saved-work code"; added a respectful "I'd rather not take part" decline path.
+- Note: the Codex runtime lost backend deps mid-session; local server now runs from `.venv-preview` (gitignored). Update `.claude/launch.json` runtimeExecutable if it moves.
+- Tests: backend 28 passed, frontend 11 passed.
+
 ## Latest Change — Student takeaway + loading states (2026-06-19)
 
 First-principles UX pass. The core gap: a student finished an activity and walked away with **nothing usable** (data was saved only for researchers).

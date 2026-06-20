@@ -8,11 +8,15 @@ import { ArrowLeftIcon, ClipboardIcon } from "./icons";
 export function Worksheet({
   task,
   session,
+  projectTitle,
+  projectGoal,
   onFinish,
   onBack
 }: {
   task: PilotTask;
   session: PilotSession;
+  projectTitle?: string | null;
+  projectGoal?: string | null;
   onFinish: () => Promise<void> | void;
   onBack: () => void;
 }) {
@@ -24,6 +28,14 @@ export function Worksheet({
   const completedCount = stepKeys.filter((key) => (responses[key] || "").trim().length > 0).length;
   const ready = canSubmitWorksheet(stepKeys, responses);
   const progress = stepKeys.length ? Math.round((completedCount / stepKeys.length) * 100) : 0;
+
+  function handleBack() {
+    const hasTyped = Object.values(responses).some((value) => value.trim().length > 0);
+    if (hasTyped && !window.confirm("Leave this worksheet? Your answers here are not saved until you submit.")) {
+      return;
+    }
+    onBack();
+  }
 
   async function submit() {
     setBusy(true);
@@ -42,15 +54,23 @@ export function Worksheet({
 
   return (
     <div className="tm-rise grid gap-4 lg:grid-cols-[320px_1fr]">
-      <aside className="tm-card h-fit p-5">
-        <button type="button" className="tm-btn-ghost mb-3 !px-3 !py-1.5 text-xs" onClick={onBack}>
+      <aside className="tm-card order-2 h-fit p-5 lg:order-1">
+        <button type="button" className="tm-btn-ghost mb-3 !px-3 !py-1.5 text-xs" onClick={handleBack}>
           <ArrowLeftIcon className="h-4 w-4" /> Back to activities
         </button>
         <span className="tm-chip bg-accent-50 text-accent-600">
           <ClipboardIcon className="h-3.5 w-3.5" /> {conditionTitle("worksheet")}
         </span>
         <h2 className="mt-3 text-lg font-extrabold text-slate-900">{task.title}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-slate-600">{task.scenario}</p>
+        {projectTitle ? (
+          <div className="mt-3 rounded-2xl border border-accent-200 bg-accent-50/50 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-accent-600">Your project</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-800">{projectTitle}</p>
+            {projectGoal && <p className="mt-0.5 text-xs text-slate-600">{projectGoal}</p>}
+          </div>
+        ) : (
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">{task.scenario}</p>
+        )}
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-4">
           <p className="text-sm font-bold text-slate-800">What to do</p>
@@ -73,7 +93,7 @@ export function Worksheet({
         </div>
       </aside>
 
-      <section className="tm-card p-5 sm:p-6">
+      <section className="tm-card order-1 p-5 sm:p-6 lg:order-2">
         <h2 className="text-lg font-extrabold text-slate-900">Your worksheet</h2>
         <p className="mt-1 text-sm text-slate-600">Work through each reasoning step in order.</p>
 
