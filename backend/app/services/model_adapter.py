@@ -122,35 +122,45 @@ def generate_tutor_turn(
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
 
 
-def _generate_poe_turn(settings: Settings, prompt: str, move: dict) -> str:
+def _poe_chat(settings: Settings, system: str, user: str, max_tokens: int, temperature: float, attempts: int = 2) -> str:
+    """Call Poe's OpenAI-compatible chat endpoint with a small retry, since Poe
+    models occasionally time out or return transient 5xx. Returns the message
+    text, or '' if every attempt fails or comes back empty."""
     url = f"{settings.poe_base_url.rstrip('/')}/chat/completions"
     headers = {"Authorization": f"Bearer {settings.poe_api_key}"}
-    try:
-        response = httpx.post(
-            url,
-            headers=headers,
-            json={
-                "model": settings.poe_model,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.3,
-                "max_tokens": 80,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        text = _extract_chat_completion_text(response.json()).strip()
-        if text:
-            return text
-        logger.warning(
-            "Poe model %s returned an empty response; using fallback question. "
-            "Check that POE_MODEL is a valid, active Poe model.",
-            settings.poe_model,
-        )
-    except httpx.HTTPError as error:
-        logger.warning("Poe model %s call failed (%s); using fallback question.", settings.poe_model, error)
+    payload = {
+        "model": settings.poe_model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    for attempt in range(1, attempts + 1):
+        try:
+            response = httpx.post(url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            text = _extract_chat_completion_text(response.json()).strip()
+            if text:
+                return text
+            logger.warning(
+                "Poe model %s returned empty content (attempt %s/%s).",
+                settings.poe_model, attempt, attempts,
+            )
+        except httpx.HTTPError as error:
+            logger.warning(
+                "Poe model %s call failed (attempt %s/%s): %s",
+                settings.poe_model, attempt, attempts, error,
+            )
+    return ""
+
+
+def _generate_poe_turn(settings: Settings, prompt: str, move: dict) -> str:
+    text = _poe_chat(settings, SYSTEM_PROMPT, prompt, max_tokens=80, temperature=0.3)
+    if text:
+        return text
+    logger.warning("Poe tutor turn fell back for model %s. Check POE_MODEL is valid and active.", settings.poe_model)
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
 
 
@@ -186,27 +196,9 @@ def generate_hint(
     )
 
     if settings.poe_api_key:
-        try:
-            response = httpx.post(
-                f"{settings.poe_base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {settings.poe_api_key}"},
-                json={
-                    "model": settings.poe_model,
-                    "messages": [
-                        {"role": "system", "content": HINT_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "temperature": 0.4,
-                    "max_tokens": 90,
-                },
-                timeout=30,
-            )
-            response.raise_for_status()
-            text = _extract_chat_completion_text(response.json()).strip()
-            if text:
-                return text
-            logger.warning("Poe model %s returned an empty hint; using fallback.", settings.poe_model)
-        except httpx.HTTPError as error:
-            logger.warning("Poe hint call failed (%s); using fallback.", error)
+        text = _poe_chat(settings, HINT_SYSTEM_PROMPT, user_prompt, max_tokens=90, temperature=0.4)
+        if text:
+            return text
+        logger.warning("Poe hint fell back for model %s.", settings.poe_model)
 
     return HINT_FALLBACK

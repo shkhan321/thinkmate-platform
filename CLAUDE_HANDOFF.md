@@ -2,6 +2,13 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Reliable model (GLM-5) + Poe retry (2026-06-19)
+
+- `POE_MODEL` is now **`GLM-5`**. `Gemma-3-27B` became unreliable on Poe (consistent read-timeouts → tutor fell back to canned questions). Reliability test (3 calls each, live key): **GLM-5 3/3**, GLM-4.6 3/3, Gemini-2.5-Flash 3/3, GPT-4o-Mini 3/3; **Gemma-3-27B 0/3 (timeouts)**, Claude-Haiku-3.5 0/3 (500), GLM-4-Plus 404. GLM-5 also gives the sharpest project-aware Socratic questions.
+- `model_adapter.py` now calls Poe through a shared `_poe_chat` helper with a **single retry** on transient timeout/5xx (used by both tutor turns and hints).
+- **Lesson:** validate a Poe model with *several* live calls (not one) before trusting it — Poe bots can be intermittently unavailable. Health only reports config, never a real call.
+- Tests: backend 24 passed, frontend 11 passed.
+
 ## Latest Change — Back navigation + "Stuck?" hints (2026-06-19)
 
 - Both the worksheet and the ThinkMate chat now have a **Back to activities** control (previously a student could get stuck inside an activity).
@@ -86,7 +93,7 @@ Important Railway variables already set:
 - `PILOT_ACCESS_CODES`
 - `CORS_ORIGINS=*`
 - `POE_API_KEY`
-- `POE_MODEL=Gemma-3-27B` (was `Gemma-4-31B`, which is not a working Poe model — it returned empty responses, so the tutor silently used fallback questions. `Gemma-3-27B` is verified to return real Socratic questions.)
+- `POE_MODEL=GLM-5` (history: `Gemma-4-31B` returned empty content; `Gemma-3-27B` worked then started timing out; `GLM-5` is verified reliable 3/3 and gives the sharpest Socratic questions.)
 - `POE_BASE_URL=https://api.poe.com/v1`
 
 Do not print, commit, or copy API keys into files. If the Poe key must be changed, set it through Railway secrets, preferably by stdin or Railway UI.
@@ -165,7 +172,7 @@ At handoff, these checks passed:
 - Backend tests: `11 passed`
 - GitHub CI: success for `84dd00a feat: improve student pilot experience`
 - Railway service: `SUCCESS`, not stopped
-- Live `/health`: `status=ok`, `database=ok`, `model_mode=poe`, `model_name=Gemma-3-27B`
+- Live `/health`: `status=ok`, `database=ok`, `model_mode=poe`, `model_name=GLM-5`
 - Live mobile UI check: no horizontal overflow
 - Live student flow check with sample code `ENG-B-001`: access code to task list works
 
