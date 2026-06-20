@@ -84,6 +84,11 @@ export const api = {
     request<{ kind: string; summary: string; final_answer: string | null }>(
       `/api/sessions/${sessionId}/summary`
     ),
+  submitFeedback: (studentId: string, rating: number, comment: string) =>
+    request<{ id: string; rating: number }>("/api/feedback", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, rating, comment })
+    }),
   dialogueTurn: (sessionId: string, content: string) =>
     request<{ student_turn: Turn; tutor_turn: Turn }>("/api/dialogue/turn", {
       method: "POST",

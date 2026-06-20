@@ -108,6 +108,14 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+export function StarIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M12 2.5l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.56l-5.91 3.1 1.13-6.57L2.45 9.44l6.6-.96L12 2.5z" />
+    </svg>
+  );
+}
+
 export function CopyIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

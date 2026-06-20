@@ -103,3 +103,13 @@ class WorksheetResponse(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     session: Mapped[PilotSession] = relationship(back_populates="worksheet_responses")
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

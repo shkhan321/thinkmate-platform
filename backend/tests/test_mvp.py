@@ -460,6 +460,36 @@ def test_worksheet_state_resumes(tmp_path):
     assert state["worksheet_responses"][0]["response"] == "Diary study."
 
 
+def test_feedback_is_saved_validated_and_exported(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Hala", "course": "engineering"}).json()
+    sid = student["student_id"]
+
+    ok = client.post("/api/feedback", json={"student_id": sid, "rating": 5, "comment": "Made me think harder."})
+    assert ok.status_code == 200
+    assert ok.json()["rating"] == 5
+
+    # Rating is bounded.
+    assert client.post("/api/feedback", json={"student_id": sid, "rating": 9}).status_code == 422
+    assert client.post("/api/feedback", json={"student_id": sid, "rating": 0}).status_code == 422
+
+    full = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "false"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    assert any(f["rating"] == 5 and f["comment"] == "Made me think harder." for f in full["feedback"])
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    # Ratings still export when blinded, but free-text comments are withheld.
+    assert any(f["rating"] == 5 for f in blinded["feedback"])
+    assert all(f["comment"] is None for f in blinded["feedback"])
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

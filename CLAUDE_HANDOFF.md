@@ -2,6 +2,11 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — End-of-session feedback (2026-06-19)
+
+- Simple **feedback step on the completion screen**: a 1–5 star rating + an optional one-line comment, asked once (a `localStorage` flag per student stops re-prompting). New `feedback` table, `POST /api/feedback`, included in the admin export (ratings always; free-text comments only in the non-blinded export).
+- Tests: backend 31 passed, frontend 11 passed.
+
 ## Latest Change — External QA report fixes (2026-06-19)
 
 Addressed an external QA/UX report (another agent). Fixes:

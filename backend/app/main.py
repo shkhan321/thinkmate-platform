@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
-from app.api import admin, auth, consent, dialogue, project, sessions, tasks, worksheet
+from app.api import admin, auth, consent, dialogue, feedback, project, sessions, tasks, worksheet
 from app.config import Settings, get_settings
 from app.database import Base, make_engine, make_session_factory
 from app.seed import parse_pilot_access_codes, seed_database
@@ -49,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(dialogue.router)
     app.include_router(worksheet.router)
+    app.include_router(feedback.router)
     app.include_router(admin.router)
 
     @app.get("/health")

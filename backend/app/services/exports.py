@@ -4,7 +4,7 @@ import io
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import PilotSession, Student, Task, Turn, WorksheetResponse
+from app.models import Feedback, PilotSession, Student, Task, Turn, WorksheetResponse
 
 
 def build_json_export(db: Session, blinded: bool) -> dict:
@@ -57,11 +57,22 @@ def build_json_export(db: Session, blinded: bool) -> dict:
         }
         for response in db.scalars(select(WorksheetResponse).order_by(WorksheetResponse.created_at)).all()
     ]
+
+    feedback = [
+        {
+            "id": item.id,
+            "student_id": item.student_id,
+            "rating": item.rating,
+            "comment": None if blinded else item.comment,
+        }
+        for item in db.scalars(select(Feedback).order_by(Feedback.created_at)).all()
+    ]
     return {
         "students": students,
         "sessions": sessions,
         "turns": turns,
         "worksheet_responses": worksheet_responses,
+        "feedback": feedback,
     }
 
 

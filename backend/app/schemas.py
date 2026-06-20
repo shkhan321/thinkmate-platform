@@ -149,3 +149,14 @@ class SessionStateResponse(BaseModel):
     final_answer: str | None = None
     turns: list[TurnResponse] = []
     worksheet_responses: list[WorksheetResponseResponse] = []
+
+
+class FeedbackRequest(BaseModel):
+    student_id: str
+    rating: int
+    comment: str | None = None
+
+
+class FeedbackResponse(BaseModel):
+    id: str
+    rating: int

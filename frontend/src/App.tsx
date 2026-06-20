@@ -27,7 +27,8 @@ import {
   CopyIcon,
   LightbulbIcon,
   ShieldIcon,
-  SparkIcon
+  SparkIcon,
+  StarIcon
 } from "./components/icons";
 
 type View = "student" | "admin";
@@ -829,6 +830,79 @@ function WrapUp({
   );
 }
 
+function Feedback({ studentId }: { studentId: string }) {
+  const storageKey = `thinkmate.feedback.${studentId}`;
+  const [given, setGiven] = useState(() => {
+    try {
+      return window.localStorage.getItem(storageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function send() {
+    if (!rating || busy) return;
+    setBusy(true);
+    try {
+      await api.submitFeedback(studentId, rating, comment);
+      try {
+        window.localStorage.setItem(storageKey, "1");
+      } catch {
+        /* private mode: still hide the form for this view */
+      }
+      setGiven(true);
+    } catch {
+      /* keep the form so the student can retry */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (given) {
+    return (
+      <div className="tm-card p-5 text-center">
+        <p className="text-sm font-semibold text-slate-700">Thanks for your feedback 🙏</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tm-card p-5">
+      <p className="text-sm font-extrabold text-slate-900">How was it?</p>
+      <p className="mt-0.5 text-xs text-slate-500">Your rating helps us improve ThinkMate — it&rsquo;s optional.</p>
+      <div className="mt-3 flex items-center gap-1" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={`${n} star${n > 1 ? "s" : ""}`}
+            aria-pressed={rating === n}
+            onClick={() => setRating(n)}
+            onMouseEnter={() => setHover(n)}
+            className="rounded-lg p-0.5 focus-visible:ring-2 focus-visible:ring-brand-300"
+          >
+            <StarIcon className={`h-7 w-7 transition ${(hover || rating) >= n ? "text-amber-400" : "text-slate-200"}`} />
+          </button>
+        ))}
+      </div>
+      <textarea
+        className="tm-input mt-3 min-h-[3.5rem] resize-y"
+        value={comment}
+        onChange={(event) => setComment(event.target.value)}
+        placeholder="Anything you'd like to tell us? (optional)"
+        maxLength={1000}
+      />
+      <button className="tm-btn-primary mt-3" onClick={send} disabled={!rating || busy}>
+        {busy ? "Sending…" : "Send feedback"}
+      </button>
+    </div>
+  );
+}
+
 function CompletionScreen({
   session,
   tasks,
@@ -939,6 +1013,8 @@ function CompletionScreen({
           )}
         </div>
       </div>
+
+      {session && <Feedback studentId={session.student_id} />}
 
       <div className="tm-card p-5 text-center">
         <p className="text-sm text-slate-600">
