@@ -53,6 +53,7 @@ class TaskResponse(BaseModel):
     worksheet_steps: list[dict]
     condition: str
     completed: bool = False
+    in_progress: bool = False
 
 
 class TaskListResponse(BaseModel):
@@ -140,3 +141,11 @@ class WorksheetResponseResponse(BaseModel):
     response: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SessionStateResponse(BaseModel):
+    condition: str
+    status: str
+    final_answer: str | None = None
+    turns: list[TurnResponse] = []
+    worksheet_responses: list[WorksheetResponseResponse] = []

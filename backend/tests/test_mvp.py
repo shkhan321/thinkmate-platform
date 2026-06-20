@@ -413,6 +413,53 @@ def test_scenario_text_is_condition_neutral(tmp_path):
         assert "ThinkMate" not in task["scenario"]
 
 
+def test_session_is_reused_and_state_resumes(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Bilal", "course": "engineering"}).json()
+    sid = student["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "Quiet drone", "project_goal": "cut noise"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+
+    first = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()
+    client.post("/api/dialogue/turn", json={"session_id": first["id"], "content": "Five blades cut noise."})
+
+    # Starting the same task again returns the SAME session (no duplicate, no lost work).
+    again = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()
+    assert again["id"] == first["id"]
+
+    state = client.get(f"/api/sessions/{first['id']}/state").json()
+    assert state["condition"] == "thinkmate"
+    assert len(state["turns"]) == 2  # student + tutor
+    assert any("Five blades" in t["content"] for t in state["turns"])
+
+    # The task now reports as in progress so the card can say "Continue".
+    refreshed = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm_now = next(t for t in refreshed if t["id"] == tm["id"])
+    assert tm_now["in_progress"] is True
+    assert tm_now["completed"] is False
+
+
+def test_worksheet_state_resumes(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Mona", "course": "psychology"}).json()
+    sid = student["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "Sleep study", "project_goal": "pick a method"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+    client.post(
+        "/api/worksheet/response",
+        json={"session_id": session_id, "step_key": "claim", "prompt": "State your claim.", "response": "Diary study."},
+    )
+
+    state = client.get(f"/api/sessions/{session_id}/state").json()
+    assert len(state["worksheet_responses"]) == 1
+    assert state["worksheet_responses"][0]["response"] == "Diary study."
+
+
 def test_production_rejects_default_admin_password(tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",

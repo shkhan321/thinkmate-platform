@@ -72,6 +72,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ answer })
     }),
+  sessionState: (sessionId: string) =>
+    request<{
+      condition: string;
+      status: string;
+      final_answer: string | null;
+      turns: Turn[];
+      worksheet_responses: Array<{ id: string; session_id: string; step_key: string; response: string }>;
+    }>(`/api/sessions/${sessionId}/state`),
   sessionSummary: (sessionId: string) =>
     request<{ kind: string; summary: string; final_answer: string | null }>(
       `/api/sessions/${sessionId}/summary`

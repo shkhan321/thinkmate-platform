@@ -32,6 +32,20 @@ export function ThinkMateChat({
   const covered = coveredReasoning(turns.filter((t) => t.role === "tutor").map((t) => t.move_type));
   const currentKey = REASONING_STEPS.find((step) => !covered.has(step.key))?.key ?? null;
 
+  // Resume the saved conversation when reopening this activity.
+  useEffect(() => {
+    let active = true;
+    api
+      .sessionState(session.id)
+      .then((state) => active && setTurns(state.turns))
+      .catch(() => {
+        /* a fresh session simply has no turns yet */
+      });
+    return () => {
+      active = false;
+    };
+  }, [session.id]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, busy]);
@@ -100,11 +114,18 @@ export function ThinkMateChat({
           </ul>
         </div>
 
-        <button className="tm-btn-ghost mt-4 w-full" type="button" onClick={() => void onFinish()}>
+        <button
+          className="tm-btn-ghost mt-4 w-full"
+          type="button"
+          onClick={() => void onFinish()}
+          disabled={exchanges === 0 || busy}
+        >
           Finish &amp; save
         </button>
         <p className="mt-3 text-center text-xs text-slate-400">
-          {exchanges === 0 ? "Not started yet" : `${exchanges} exchange${exchanges === 1 ? "" : "s"} so far`}
+          {exchanges === 0
+            ? "Send at least one message to begin"
+            : `${exchanges} exchange${exchanges === 1 ? "" : "s"} so far`}
         </p>
       </aside>
 

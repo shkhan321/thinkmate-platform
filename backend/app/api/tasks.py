@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Consent, PilotSession, Student, Task
+from app.models import Consent, PilotSession, Student, Task, Turn, WorksheetResponse
 from app.schemas import TaskListResponse, TaskResponse
 from app.services.routing import condition_for
 
@@ -31,6 +31,30 @@ def list_tasks(student_id: str = Query(...), db: Session = Depends(get_db)):
             )
         ).all()
     )
+
+    # A task is "in progress" if the student has a not-yet-complete session for it
+    # that already holds some saved work (chat turns or worksheet answers).
+    in_progress_task_ids: set[str] = set()
+    open_sessions = db.scalars(
+        select(PilotSession).where(
+            PilotSession.student_id == student.id,
+            PilotSession.status != "complete",
+        )
+    ).all()
+    for open_session in open_sessions:
+        if open_session.task_id in completed_task_ids:
+            continue
+        turn_count = db.scalar(
+            select(func.count()).select_from(Turn).where(Turn.session_id == open_session.id)
+        )
+        response_count = db.scalar(
+            select(func.count())
+            .select_from(WorksheetResponse)
+            .where(WorksheetResponse.session_id == open_session.id)
+        )
+        if (turn_count or 0) > 0 or (response_count or 0) > 0:
+            in_progress_task_ids.add(open_session.task_id)
+
     return TaskListResponse(
         tasks=[
             TaskResponse(
@@ -42,6 +66,7 @@ def list_tasks(student_id: str = Query(...), db: Session = Depends(get_db)):
                 worksheet_steps=task.worksheet_steps,
                 condition=condition_for(student.sequence, task.task_number),
                 completed=task.id in completed_task_ids,
+                in_progress=task.id in in_progress_task_ids,
             )
             for task in tasks
         ]

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { REASONING_STEPS, studentProgress, tourSteps, type StudentStage } from "../flow";
 import { CheckIcon, CloseIcon, SparkIcon } from "./icons";
 
@@ -142,6 +142,47 @@ export function Callout({ children }: { children: ReactNode }) {
 
 export function QuickTour({ onClose }: { onClose: () => void }) {
   const steps = tourSteps();
+  const panelRef = useRef<HTMLElement>(null);
+
+  // Modal a11y: close on Escape, keep focus inside the dialog (focus trap),
+  // and return focus to whatever opened it. (WCAG 2.1.2 + 2.4.7)
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const focusables = () =>
+      Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+    focusables()[0]?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key === "Tab") {
+        const items = focusables();
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
@@ -151,6 +192,7 @@ export function QuickTour({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <section
+        ref={panelRef}
         className="tm-card tm-rise w-full max-w-lg p-6 sm:p-7"
         onClick={(event) => event.stopPropagation()}
       >

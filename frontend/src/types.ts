@@ -39,6 +39,7 @@ export interface PilotTask {
   worksheet_steps: WorksheetStep[];
   condition: Condition;
   completed: boolean;
+  in_progress: boolean;
 }
 
 export interface PilotSession {

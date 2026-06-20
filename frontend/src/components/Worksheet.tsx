@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { canSubmitWorksheet, conditionTitle } from "../flow";
 import type { PilotSession, PilotTask } from "../types";
@@ -23,6 +23,29 @@ export function Worksheet({
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Resume any answers the student already saved for this worksheet.
+  useEffect(() => {
+    let active = true;
+    api
+      .sessionState(session.id)
+      .then((state) => {
+        if (!active || state.worksheet_responses.length === 0) return;
+        setResponses((current) => {
+          const restored = { ...current };
+          for (const row of state.worksheet_responses) {
+            if (!(restored[row.step_key] ?? "").trim()) restored[row.step_key] = row.response;
+          }
+          return restored;
+        });
+      })
+      .catch(() => {
+        /* a fresh worksheet simply has no saved answers yet */
+      });
+    return () => {
+      active = false;
+    };
+  }, [session.id]);
 
   const stepKeys = useMemo(() => task.worksheet_steps.map((step) => step.key), [task]);
   const completedCount = stepKeys.filter((key) => (responses[key] || "").trim().length > 0).length;

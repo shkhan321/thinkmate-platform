@@ -2,6 +2,20 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — External QA report fixes (2026-06-19)
+
+Addressed an external QA/UX report (another agent). Fixes:
+
+- **CRITICAL — chat now resumes.** Was: leaving a discussion lost all messages and started a new session. Now `start_session` reuses the student's existing session per task; new `GET /api/sessions/{id}/state` returns saved turns + worksheet answers; the chat reloads them on open. Activity cards show **"In progress" / "Continue discussion"** (`tasks.in_progress`). `backToActivities` refreshes the task list.
+- **Empty discussion can't be "finished":** Finish is disabled until at least one exchange.
+- **Tour dialog a11y:** closes on Escape, traps Tab focus, returns focus to the trigger.
+- **Research-team link hidden once a student is signed in** (only shows on the landing).
+- **Edit project** button on the activities screen (returns to a pre-filled intake).
+- Course-options note on sign-in; "Skip to main content" link; mobile "Step N of 5" indicator; "study ID" already renamed earlier.
+- Already-fixed earlier (the report tested an older build): copy "Copied!" feedback, AI "thinking…" indicator, mobile content-first layout.
+- Worksheet still persists on submit (not per-field); its guard is the Back-confirm. Per-field worksheet autosave is a possible future improvement.
+- Tests: backend 30 passed, frontend 11 passed.
+
 ## Latest Change — Reviewer pass: write-your-answer + mobile + fixes (2026-06-19)
 
 External-reviewer walkthrough of the whole student flow, then fixes:

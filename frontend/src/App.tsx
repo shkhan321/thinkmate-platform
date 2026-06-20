@@ -8,6 +8,7 @@ import {
   courseLabel,
   firstName,
   modelModeLabel,
+  studentProgress,
   taskActionLabel,
   type StudentStage
 } from "./flow";
@@ -37,6 +38,7 @@ export default function App() {
   const [view, setView] = useState<View>("student");
   const [health, setHealth] = useState<Health | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const [studentActive, setStudentActive] = useState(false);
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
@@ -44,17 +46,23 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="sr-only rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+      >
+        Skip to main content
+      </a>
       <TopBar view={view} setView={setView} health={health} onOpenTour={() => setTourOpen(true)} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
+      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
         {view === "student" ? (
-          <StudentExperience onOpenTour={() => setTourOpen(true)} />
+          <StudentExperience onOpenTour={() => setTourOpen(true)} onActiveChange={setStudentActive} />
         ) : (
           <AdminPanel />
         )}
       </main>
 
-      <SiteFooter view={view} setView={setView} />
+      <SiteFooter view={view} setView={setView} showResearchLink={!studentActive} />
       {tourOpen && <QuickTour onClose={() => setTourOpen(false)} />}
     </div>
   );
@@ -105,24 +113,44 @@ function TopBar({
   );
 }
 
-function SiteFooter({ view, setView }: { view: View; setView: (view: View) => void }) {
+function SiteFooter({
+  view,
+  setView,
+  showResearchLink
+}: {
+  view: View;
+  setView: (view: View) => void;
+  showResearchLink: boolean;
+}) {
   return (
     <footer className="border-t border-white/60 px-4 py-6 sm:px-6">
       <div className="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-400 sm:flex-row sm:text-left">
         <p>ThinkMate · UAE University Teaching &amp; Learning pilot</p>
-        {view === "student" ? (
-          <button type="button" className="font-semibold text-slate-400 hover:text-brand-600" onClick={() => setView("admin")}>
-            Research team
-          </button>
-        ) : (
+        {view === "admin" ? (
           <span className="font-semibold text-brand-600">Research team area</span>
+        ) : (
+          showResearchLink && (
+            <button
+              type="button"
+              className="font-semibold text-slate-400 hover:text-brand-600"
+              onClick={() => setView("admin")}
+            >
+              Research team
+            </button>
+          )
         )}
       </div>
     </footer>
   );
 }
 
-function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
+function StudentExperience({
+  onOpenTour,
+  onActiveChange
+}: {
+  onOpenTour: () => void;
+  onActiveChange: (active: boolean) => void;
+}) {
   const [stage, setStage] = useState<StudentStage>("login");
   const [student, setStudent] = useState<Student | null>(null);
   const [tasks, setTasks] = useState<PilotTask[]>([]);
@@ -130,6 +158,12 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   const [session, setSession] = useState<PilotSession | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  // Let the app shell know whether a student is signed in (controls the footer's
+  // research-team link so students don't stumble into the admin area).
+  useEffect(() => {
+    onActiveChange(student !== null);
+  }, [student, onActiveChange]);
 
   // Resume a saved session on reload so students never lose their place.
   useEffect(() => {
@@ -292,10 +326,17 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     void completeAndReturn();
   }
 
-  function backToActivities() {
+  async function backToActivities() {
     setActiveTask(null);
     setSession(null);
     setError("");
+    if (student) {
+      try {
+        await loadTasks(student.student_id);
+      } catch {
+        /* keep showing the cached task list if the refresh fails */
+      }
+    }
     setStage("tasks");
   }
 
@@ -324,7 +365,15 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       {stage === "project" && (
         <ProjectIntake student={student} onSave={saveProjectInfo} error={error} pending={pending} />
       )}
-      {stage === "tasks" && <TaskList student={student} tasks={tasks} onStart={startTask} pending={pending} />}
+      {stage === "tasks" && (
+        <TaskList
+          student={student}
+          tasks={tasks}
+          onStart={startTask}
+          onEditProject={() => setStage("project")}
+          pending={pending}
+        />
+      )}
       {stage === "active" && activeTask && session?.condition === "thinkmate" && (
         <ThinkMateChat
           task={activeTask}
@@ -365,6 +414,8 @@ function SignedInBar({
   onSignOut: () => void;
 }) {
   if (!student) return null;
+  const steps = studentProgress(stage);
+  const currentNum = steps.findIndex((step) => step.status === "current") + 1;
   return (
     <div className="tm-card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
       <div className="flex items-center gap-3">
@@ -379,6 +430,11 @@ function SignedInBar({
         </div>
       </div>
       <div className="flex items-center gap-3">
+        {currentNum > 0 && (
+          <span className="text-xs font-semibold text-slate-500 sm:hidden">
+            Step {currentNum} of {steps.length}
+          </span>
+        )}
         <div className="hidden sm:block">
           <Stepper stage={stage} />
         </div>
@@ -504,6 +560,9 @@ function SignIn({
               );
             })}
           </div>
+          <p className="mt-2 text-xs text-slate-400">
+            ThinkMate is currently running for these two pilot courses. More may be added later.
+          </p>
 
           <button className="tm-btn-primary mt-6 w-full" disabled={!ready || pending}>
             {pending ? "Signing you in…" : <>Continue <ArrowRightIcon className="h-5 w-5" /></>}
@@ -617,11 +676,13 @@ function TaskList({
   student,
   tasks,
   onStart,
+  onEditProject,
   pending
 }: {
   student: Student | null;
   tasks: PilotTask[];
   onStart: (task: PilotTask) => void;
+  onEditProject: () => void;
   pending: boolean;
 }) {
   const remaining = tasks.filter((task) => !task.completed).length;
@@ -646,6 +707,18 @@ function TaskList({
         )}
       </div>
 
+      {student?.project_title && (
+        <div className="tm-card flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-600">Your project</p>
+            <p className="truncate font-semibold text-slate-800">{student.project_title}</p>
+          </div>
+          <button type="button" className="tm-btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={onEditProject}>
+            Edit project
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         {tasks.map((task) => {
           const isChat = task.condition === "thinkmate";
@@ -664,6 +737,8 @@ function TaskList({
                   <span className="tm-chip bg-emerald-50 text-emerald-700">
                     <CheckIcon className="h-3.5 w-3.5" /> Done
                   </span>
+                ) : task.in_progress ? (
+                  <span className="tm-chip bg-amber-50 text-amber-700">In progress</span>
                 ) : (
                   task.id === firstIncompleteId && (
                     <span className="tm-chip bg-brand-600 text-white">Start here</span>
@@ -685,7 +760,15 @@ function TaskList({
                 onClick={() => onStart(task)}
                 disabled={pending}
               >
-                {pending ? "Opening…" : task.completed ? "Open again" : taskActionLabel(task.condition)}
+                {pending
+                  ? "Opening…"
+                  : task.completed
+                    ? "Open again"
+                    : task.in_progress
+                      ? task.condition === "thinkmate"
+                        ? "Continue discussion"
+                        : "Continue worksheet"
+                      : taskActionLabel(task.condition)}
                 {!task.completed && !pending && <ArrowRightIcon className="h-5 w-5" />}
               </button>
             </article>

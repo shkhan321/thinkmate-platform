@@ -12,6 +12,7 @@ from app.schemas import (
     AnswerResponse,
     CompleteSessionResponse,
     SessionResponse,
+    SessionStateResponse,
     SessionSummaryResponse,
     StartSessionRequest,
 )
@@ -37,6 +38,16 @@ def start_session(payload: StartSessionRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Task does not belong to student's course.")
     _ensure_consent(db, student.id)
 
+    # Reuse the student's existing session for this task so their work is never
+    # lost on navigation and we keep one canonical record per task (no duplicates).
+    existing = db.scalar(
+        select(PilotSession)
+        .where(PilotSession.student_id == student.id, PilotSession.task_id == task.id)
+        .order_by(PilotSession.started_at.desc())
+    )
+    if existing is not None:
+        return existing
+
     session = PilotSession(
         student_id=student.id,
         task_id=task.id,
@@ -57,6 +68,30 @@ def complete_session(session_id: str, db: Session = Depends(get_db)):
     session.completed_at = datetime.now(timezone.utc)
     db.commit()
     return CompleteSessionResponse(id=session.id, status=session.status)
+
+
+@router.get("/{session_id}/state", response_model=SessionStateResponse)
+def session_state(session_id: str, db: Session = Depends(get_db)):
+    """Return a session's saved content so the student can resume exactly where
+    they left off — the chat transcript and any worksheet answers."""
+    session = db.get(PilotSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    turns = db.scalars(
+        select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
+    ).all()
+    rows = db.scalars(
+        select(WorksheetResponse)
+        .where(WorksheetResponse.session_id == session.id)
+        .order_by(WorksheetResponse.created_at)
+    ).all()
+    return SessionStateResponse(
+        condition=session.condition,
+        status=session.status,
+        final_answer=session.final_answer,
+        turns=list(turns),
+        worksheet_responses=list(rows),
+    )
 
 
 @router.post("/{session_id}/answer", response_model=AnswerResponse)
