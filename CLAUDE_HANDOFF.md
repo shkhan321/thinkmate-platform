@@ -2,6 +2,13 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Cancel on Edit Project (2026-06-19)
+
+Minor QA follow-up. Of the four items reported, three were already fixed in the previous build (verified): mobile chat now sits **above** the thinking map (chat-first), tab order is Skip → header → form (not form→footer→header), and the homepage footer has **no** research-team link. The one genuinely open item is fixed:
+
+- **Edit Project now has a Cancel** (only in edit mode — never on the first, required intake). Cancel returns to the activities list and **discards the unsaved draft** so the saved project is unchanged.
+- Tests: backend 31 passed, frontend 11 passed.
+
 ## Latest Change — QA round 2 (mobile, drafts, back button, admin) (2026-06-19)
 
 Second external QA report. Frontend-only fixes:

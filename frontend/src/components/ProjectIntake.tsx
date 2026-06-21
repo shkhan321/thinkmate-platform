@@ -7,11 +7,13 @@ import { ArrowRightIcon, SparkIcon } from "./icons";
 export function ProjectIntake({
   student,
   onSave,
+  onCancel,
   error,
   pending
 }: {
   student: Student | null;
   onSave: (title: string, goal: string) => void;
+  onCancel?: () => void;
   error: string;
   pending: boolean;
 }) {
@@ -109,9 +111,16 @@ export function ProjectIntake({
           </p>
         </div>
 
-        <button className="tm-btn-primary w-full sm:w-auto" disabled={!ready || pending}>
-          {pending ? "Setting up…" : <>Start thinking <ArrowRightIcon className="h-5 w-5" /></>}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button className="tm-btn-primary w-full sm:w-auto" disabled={!ready || pending}>
+            {pending ? "Setting up…" : <>Start thinking <ArrowRightIcon className="h-5 w-5" /></>}
+          </button>
+          {onCancel && (
+            <button type="button" className="tm-btn-ghost" onClick={onCancel} disabled={pending}>
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </section>
   );

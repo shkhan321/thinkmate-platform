@@ -396,7 +396,22 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
         <ConsentScreen student={student} onAccept={acceptConsent} onDecline={signOut} pending={pending} />
       )}
       {stage === "project" && (
-        <ProjectIntake student={student} onSave={saveProjectInfo} error={error} pending={pending} />
+        <ProjectIntake
+          student={student}
+          onSave={saveProjectInfo}
+          onCancel={
+            student?.project_title
+              ? () => {
+                  const draftKey = projectDraftKey(student.student_id);
+                  if (draftKey) window.localStorage.removeItem(draftKey);
+                  setError("");
+                  setStage("tasks");
+                }
+              : undefined
+          }
+          error={error}
+          pending={pending}
+        />
       )}
       {stage === "tasks" && (
         <TaskList
