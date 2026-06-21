@@ -270,6 +270,22 @@ def test_tutor_prompt_is_anchored_to_student_project():
     assert "choose a battery layout" in prompt
 
 
+def test_tutor_prompt_includes_conversation_history():
+    from app.services.model_adapter import _build_prompt
+
+    prompt = _build_prompt(
+        task_title="Stress-test your project",
+        scenario="Look for weak spots.",
+        student_content="I think nylon is strong enough.",
+        move={"move_type": "evidence_probe", "paul_elder_target": "accuracy", "prompt": "What evidence?"},
+        project_title="Foldable drone arm",
+        project_goal="pick a material",
+        history="Student: I will use nylon.\nThinkMate: Why nylon over PLA?",
+    )
+    assert "Conversation so far" in prompt
+    assert "Why nylon over PLA?" in prompt
+
+
 def test_seed_tasks_are_project_agnostic(tmp_path):
     client = make_client(tmp_path)
     sid = client.post("/api/auth/start", json={"name": "Yousef", "course": "engineering"}).json()["student_id"]

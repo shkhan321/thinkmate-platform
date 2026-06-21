@@ -34,26 +34,28 @@ def list_tasks(student_id: str = Query(...), db: Session = Depends(get_db)):
 
     # A task is "in progress" if the student has a not-yet-complete session for it
     # that already holds some saved work (chat turns or worksheet answers).
+    # Also track the latest session per task so the UI can review saved work.
     in_progress_task_ids: set[str] = set()
-    open_sessions = db.scalars(
-        select(PilotSession).where(
-            PilotSession.student_id == student.id,
-            PilotSession.status != "complete",
-        )
+    latest_session_by_task: dict[str, str] = {}
+    student_sessions = db.scalars(
+        select(PilotSession)
+        .where(PilotSession.student_id == student.id)
+        .order_by(PilotSession.started_at)
     ).all()
-    for open_session in open_sessions:
-        if open_session.task_id in completed_task_ids:
+    for student_session in student_sessions:
+        latest_session_by_task[student_session.task_id] = student_session.id
+        if student_session.status == "complete" or student_session.task_id in completed_task_ids:
             continue
         turn_count = db.scalar(
-            select(func.count()).select_from(Turn).where(Turn.session_id == open_session.id)
+            select(func.count()).select_from(Turn).where(Turn.session_id == student_session.id)
         )
         response_count = db.scalar(
             select(func.count())
             .select_from(WorksheetResponse)
-            .where(WorksheetResponse.session_id == open_session.id)
+            .where(WorksheetResponse.session_id == student_session.id)
         )
         if (turn_count or 0) > 0 or (response_count or 0) > 0:
-            in_progress_task_ids.add(open_session.task_id)
+            in_progress_task_ids.add(student_session.task_id)
 
     return TaskListResponse(
         tasks=[
@@ -67,6 +69,7 @@ def list_tasks(student_id: str = Query(...), db: Session = Depends(get_db)):
                 condition=condition_for(student.sequence, task.task_number),
                 completed=task.id in completed_task_ids,
                 in_progress=task.id in in_progress_task_ids,
+                session_id=latest_session_by_task.get(task.id),
             )
             for task in tasks
         ]

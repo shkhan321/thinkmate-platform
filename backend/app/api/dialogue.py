@@ -34,6 +34,16 @@ def dialogue_turn(
         raise HTTPException(status_code=404, detail="Task not found.")
     student = db.get(Student, session.student_id)
 
+    # Build the conversation so far (before this message) so the tutor can build
+    # on it and avoid repeating questions — this is what makes it feel like a
+    # thinking partner with memory rather than a stateless prompt.
+    prior_turns = db.scalars(
+        select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
+    ).all()
+    history = "\n".join(
+        f"{'Student' if turn.role == 'student' else 'ThinkMate'}: {turn.content}" for turn in prior_turns[-6:]
+    )
+
     student_turn = Turn(
         session_id=session.id,
         turn_number=_next_turn_number(db, session.id),
@@ -56,6 +66,7 @@ def dialogue_turn(
         move,
         project_title=(student.project_title or "") if student else "",
         project_goal=(student.project_goal or "") if student else "",
+        history=history,
     )
     safeguarded = apply_safeguard(raw_content)
     tutor_turn = Turn(

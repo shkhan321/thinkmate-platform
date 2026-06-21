@@ -8,12 +8,16 @@ logger = logging.getLogger("thinkmate.model")
 
 
 SYSTEM_PROMPT = (
-    "You are ThinkMate, a Socratic tutor for a university capstone student. "
-    "Your job is to strengthen the student's own thinking about their own project. "
-    "Hard rules: never give the answer, never write or rewrite the student's work, "
-    "never confirm if they are right or wrong. Ask exactly ONE short question. "
-    "Use simple, clear English (one or two short sentences). "
-    "Always anchor your question to the student's specific project and to what they just said."
+    "You are ThinkMate, a Socratic tutor for a university capstone student. Your job is to "
+    "strengthen the student's OWN thinking about their OWN project by asking one good question "
+    "at a time. Rules you must follow:\n"
+    "- Never give the answer, never write or rewrite the student's work, and never say whether "
+    "they are right or wrong.\n"
+    "- Ask exactly ONE short question, in simple, clear English (one or two sentences).\n"
+    "- Build on the whole conversation so far. Do not repeat a question they have already answered.\n"
+    "- Tune the question to the student's level. If they seem stuck or ask you for the answer, "
+    "break the problem into a smaller, easier step instead of giving it away.\n"
+    "- Always anchor the question to the student's specific project and to what they just said."
 )
 
 
@@ -24,6 +28,7 @@ def _build_prompt(
     move: dict,
     project_title: str = "",
     project_goal: str = "",
+    history: str = "",
 ) -> str:
     project_block = ""
     if project_title or project_goal:
@@ -31,6 +36,7 @@ def _build_prompt(
             f"Student's project: {project_title or 'not given'}\n"
             f"What the student wants to do: {project_goal or 'not given'}\n"
         )
+    history_block = f"Conversation so far:\n{history}\n\n" if history.strip() else ""
     return (
         "You are ThinkMate, a Socratic tutor. Do not give direct answers. "
         "Ask one short, simple question that pushes the student's reasoning.\n\n"
@@ -38,9 +44,10 @@ def _build_prompt(
         f"Activity: {task_title}\n"
         f"How this activity helps: {scenario}\n"
         f"Target move: {move['move_type']}\n"
-        f"Paul-Elder target: {move['paul_elder_target']}\n"
+        f"Paul-Elder target: {move['paul_elder_target']}\n\n"
+        f"{history_block}"
         f"Student just said: {student_content}\n"
-        "Your one short question:"
+        "Your one short question (build on the conversation, do not repeat earlier questions):"
     )
 
 
@@ -91,8 +98,9 @@ def generate_tutor_turn(
     move: dict,
     project_title: str = "",
     project_goal: str = "",
+    history: str = "",
 ) -> str:
-    prompt = _build_prompt(task_title, scenario, student_content, move, project_title, project_goal)
+    prompt = _build_prompt(task_title, scenario, student_content, move, project_title, project_goal, history)
 
     if settings.poe_api_key:
         return _generate_poe_turn(settings, prompt, move)

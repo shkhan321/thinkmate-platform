@@ -1,6 +1,14 @@
 import type { Condition, ModelMode } from "./types";
 
-export type StudentStage = "login" | "consent" | "project" | "tasks" | "active" | "wrapup" | "complete";
+export type StudentStage =
+  | "login"
+  | "consent"
+  | "project"
+  | "tasks"
+  | "active"
+  | "wrapup"
+  | "complete"
+  | "review";
 export type ProgressStatus = "complete" | "current" | "upcoming";
 
 export interface ProgressStep {

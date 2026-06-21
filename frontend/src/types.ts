@@ -40,6 +40,7 @@ export interface PilotTask {
   condition: Condition;
   completed: boolean;
   in_progress: boolean;
+  session_id?: string | null;
 }
 
 export interface PilotSession {

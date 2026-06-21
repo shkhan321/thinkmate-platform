@@ -20,6 +20,7 @@ import { AdminPanel } from "./components/Admin";
 import { ProjectIntake } from "./components/ProjectIntake";
 import { Callout, QuickTour, Stepper, Wordmark } from "./components/ui";
 import {
+  ArrowLeftIcon,
   ArrowRightIcon,
   ChatIcon,
   CheckIcon,
@@ -151,6 +152,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   const [tasks, setTasks] = useState<PilotTask[]>([]);
   const [activeTask, setActiveTask] = useState<PilotTask | null>(null);
   const [session, setSession] = useState<PilotSession | null>(null);
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -166,9 +168,9 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   // Map the browser Back button to an in-app "back to activities" while a
   // student is in an activity, so Back never leaves the app to a blank page.
   useEffect(() => {
-    if (stage === "active") {
+    if (stage === "active" || stage === "review") {
       try {
-        window.history.pushState({ tm: "activity" }, "");
+        window.history.pushState({ tm: stage }, "");
       } catch {
         /* history unavailable: fall back to default behaviour */
       }
@@ -178,7 +180,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   useEffect(() => {
     function onPopState() {
       const current = stageRef.current;
-      if (current === "active" || current === "wrapup" || current === "complete") {
+      if (current === "active" || current === "wrapup" || current === "complete" || current === "review") {
         try {
           window.history.pushState({ tm: "trap" }, "");
         } catch {
@@ -359,6 +361,13 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     void completeAndReturn();
   }
 
+  function reviewTask(task: PilotTask) {
+    if (!task.session_id) return;
+    setReviewSessionId(task.session_id);
+    setError("");
+    setStage("review");
+  }
+
   async function backToActivities() {
     setActiveTask(null);
     setSession(null);
@@ -418,6 +427,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
           student={student}
           tasks={tasks}
           onStart={startTask}
+          onReview={reviewTask}
           onEditProject={() => setStage("project")}
           pending={pending}
         />
@@ -448,6 +458,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       {stage === "complete" && (
         <CompletionScreen session={session} tasks={tasks} onReturn={() => setStage("tasks")} />
       )}
+      {stage === "review" && <ReviewScreen sessionId={reviewSessionId} onBack={backToActivities} />}
     </div>
   );
 }
@@ -724,12 +735,14 @@ function TaskList({
   student,
   tasks,
   onStart,
+  onReview,
   onEditProject,
   pending
 }: {
   student: Student | null;
   tasks: PilotTask[];
   onStart: (task: PilotTask) => void;
+  onReview: (task: PilotTask) => void;
   onEditProject: () => void;
   pending: boolean;
 }) {
@@ -803,22 +816,27 @@ function TaskList({
                 {conditionGuide(task.condition)}
               </p>
 
-              <button
-                className={task.completed ? "tm-btn-ghost mt-4 w-full" : "tm-btn-primary mt-4 w-full"}
-                onClick={() => onStart(task)}
-                disabled={pending}
-              >
-                {pending
-                  ? "Opening…"
-                  : task.completed
-                    ? "Open again"
+              {task.completed ? (
+                <div className="mt-4 flex gap-2">
+                  <button className="tm-btn-primary flex-1" onClick={() => onReview(task)} disabled={pending}>
+                    Review my work
+                  </button>
+                  <button className="tm-btn-ghost shrink-0" onClick={() => onStart(task)} disabled={pending}>
+                    {pending ? "Opening…" : "Open again"}
+                  </button>
+                </div>
+              ) : (
+                <button className="tm-btn-primary mt-4 w-full" onClick={() => onStart(task)} disabled={pending}>
+                  {pending
+                    ? "Opening…"
                     : task.in_progress
                       ? task.condition === "thinkmate"
                         ? "Continue discussion"
                         : "Continue worksheet"
                       : taskActionLabel(task.condition)}
-                {!task.completed && !pending && <ArrowRightIcon className="h-5 w-5" />}
-              </button>
+                  {!pending && <ArrowRightIcon className="h-5 w-5" />}
+                </button>
+              )}
             </article>
           );
         })}
@@ -1071,6 +1089,108 @@ function CompletionScreen({
         </p>
         <button className="tm-btn-primary mt-3" onClick={onReturn}>
           {remaining > 0 ? "Back to my activities" : "View my activities"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ReviewScreen({ sessionId, onBack }: { sessionId: string | null; onBack: () => void }) {
+  const [summary, setSummary] = useState("");
+  const [kind, setKind] = useState<string>("");
+  const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setLoading(false);
+      setFailed(true);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    setFailed(false);
+    api
+      .sessionSummary(sessionId)
+      .then((result) => {
+        if (!active) return;
+        setSummary(result.summary);
+        setKind(result.kind);
+        setFinalAnswer(result.final_answer);
+      })
+      .catch(() => active && setFailed(true))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  const isAi = kind === "ai";
+  const clipboardText = finalAnswer ? `My answer: ${finalAnswer}\n\n${summary}` : summary;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(clipboardText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <section className="tm-rise mx-auto max-w-xl space-y-4">
+      <div className="tm-card p-5">
+        <button type="button" className="tm-btn-ghost !px-3 !py-1.5 text-xs" onClick={onBack}>
+          <ArrowLeftIcon className="h-4 w-4" /> Back to activities
+        </button>
+        <h2 className="mt-3 text-xl font-extrabold text-slate-900">Your saved work</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          This is what you saved for this activity. You can copy it into your capstone notes any time.
+        </p>
+      </div>
+
+      {finalAnswer && (
+        <div className="tm-card border-2 border-brand-200 p-5">
+          <p className="flex items-center gap-1.5 text-sm font-extrabold text-brand-700">
+            <CheckIcon className="h-4 w-4" /> Your answer
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-base font-medium leading-relaxed text-slate-800">
+            {finalAnswer}
+          </p>
+        </div>
+      )}
+
+      <div className="tm-card p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="flex items-center gap-1.5 text-sm font-extrabold text-slate-900">
+            <LightbulbIcon className="h-4 w-4 text-accent-600" />
+            {isAi ? "Your thinking brief" : "Your worksheet answers"}
+          </p>
+          {!loading && !failed && summary && (
+            <button type="button" className="tm-btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={copy}>
+              <CopyIcon className="h-4 w-4" /> {copied ? "Copied!" : "Copy"}
+            </button>
+          )}
+        </div>
+        <div className="mt-3 rounded-2xl bg-slate-50 p-4">
+          {loading ? (
+            <p className="flex items-center gap-2 text-sm text-slate-500">
+              <SparkIcon className="h-4 w-4 animate-pulse text-brand-500" /> Loading your work…
+            </p>
+          ) : failed ? (
+            <p className="text-sm text-slate-600">We couldn&rsquo;t load this just now. Please try again.</p>
+          ) : (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{summary}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="tm-card p-5 text-center">
+        <button className="tm-btn-primary" onClick={onBack}>
+          Back to my activities
         </button>
       </div>
     </section>

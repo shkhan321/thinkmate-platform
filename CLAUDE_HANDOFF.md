@@ -2,6 +2,16 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Tutor memory + Review-your-work (2026-06-19)
+
+Researched proven Socratic-tutor patterns (adaptive scaffolding, never-answer, thinking-partner-with-memory) and strengthened the build:
+
+- **Conversation memory:** the tutor prompt now includes the recent transcript (`dialogue.py` passes `history`), so questions build on the whole conversation and don't repeat. System prompt strengthened: adapt to the student's level, scaffold a smaller question if they're stuck or ask for the answer, never give it.
+- **Review your work (continue-later):** completed activities now have a **"Review my work"** button that opens a read-only view of the saved answer + brief (or worksheet answers) without restarting — built on `GET /api/sessions/{id}/state` + `/summary`. `tasks` now returns `session_id` per task. Browser-back guard extended to the review screen.
+- Resume of in-progress chats/worksheets and drafts (from earlier passes) already cover "continue later"; this adds re-reading finished work.
+- Reviewed by the local **Codex CLI** (`codex exec review`, gpt-5.5) — see notes below.
+- Tests: backend 32 passed, frontend 11 passed.
+
 ## Latest Change — Cancel on Edit Project (2026-06-19)
 
 Minor QA follow-up. Of the four items reported, three were already fixed in the previous build (verified): mobile chat now sits **above** the thinking map (chat-first), tab order is Skip → header → form (not form→footer→header), and the homepage footer has **no** research-team link. The one genuinely open item is fixed:

@@ -54,6 +54,7 @@ class TaskResponse(BaseModel):
     condition: str
     completed: bool = False
     in_progress: bool = False
+    session_id: str | None = None
 
 
 class TaskListResponse(BaseModel):
