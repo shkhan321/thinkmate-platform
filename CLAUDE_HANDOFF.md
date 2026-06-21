@@ -2,6 +2,20 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — UX polish round (2026-06-19)
+
+Applied a QA suggestions list (kept what helps, declined what doesn't):
+
+- **Download** button (alongside Copy) on the completion + review takeaways (saves answer + brief as .txt).
+- **Soft early-finish confirm** in the chat: finishing with fewer than 3 of 5 thinking steps asks "finish anyway?" (the ≥1-exchange hard gate stays).
+- **Estimated time** ("≈ 10–15 min") on activity cards.
+- **Accurate resume hint** on consent: "sign in with the same name and course to continue" (the saved-work code is not a login credential).
+- **Project-aware worksheet claim hint** ("For my project (X), I decided to …").
+- A11y: decorative icons `aria-hidden`, one `<h1>` per view (sr-only), skip-link raised above the sticky header.
+- Tests: backend 37 passed, frontend 11 passed.
+
+**Declined (with reason):** dark mode (large effort, low pilot value), a 404 page (N/A for a routerless SPA), message editing/regenerate (would corrupt the per-turn research log). Worksheet auto-save was already shipped. The full holistic cross-activity dashboard is deferred — the tasks screen + per-activity "Review my work" already cover reviewing both.
+
 ## Latest Change — Codex review fixes (2026-06-19)
 
 Ran a full read-only review with the local **Codex CLI (gpt-5.5, xhigh)** ("full DNA" prompt). Applied the high-value, safe findings:

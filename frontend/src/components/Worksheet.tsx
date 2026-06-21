@@ -156,6 +156,11 @@ export function Worksheet({
         <div className="mt-5 space-y-5">
           {task.worksheet_steps.map((step, index) => {
             const filled = (responses[step.key] || "").trim().length > 0;
+            // Personalise the first (claim) hint with the student's own project.
+            const example =
+              step.key === "claim" && projectTitle
+                ? `e.g. “For my project (${projectTitle}), I decided to … because …”`
+                : step.example;
             return (
               <div key={step.key}>
                 <label className="flex items-start gap-3">
@@ -177,11 +182,11 @@ export function Worksheet({
                   onChange={(event) =>
                     setResponses((current) => ({ ...current, [step.key]: event.target.value }))
                   }
-                  placeholder={step.example || "Write your answer here…"}
+                  placeholder={example || "Write your answer here…"}
                   aria-label={`${step.label}: ${step.prompt}`}
                 />
-                {step.example && (
-                  <p className="mt-1 pl-10 text-xs text-slate-400">Stuck? {step.example}</p>
+                {example && (
+                  <p className="mt-1 pl-10 text-xs text-slate-400">Stuck? {example}</p>
                 )}
               </div>
             );

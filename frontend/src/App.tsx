@@ -62,7 +62,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col">
       <a
         href="#main"
-        className="sr-only rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+        className="sr-only rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60]"
       >
         Skip to main content
       </a>
@@ -396,8 +396,19 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     return <SignIn onStart={handleStart} onOpenTour={onOpenTour} error={error} pending={pending} />;
   }
 
+  const stageHeadings: Record<string, string> = {
+    consent: "Agree to take part",
+    project: "Tell us about your project",
+    tasks: "Your activities",
+    active: "Activity in progress",
+    wrapup: "Write your answer",
+    complete: "Activity complete",
+    review: "Your saved work"
+  };
+
   return (
     <div className="space-y-6">
+      <h1 className="sr-only">ThinkMate — {stageHeadings[stage] ?? "Student"}</h1>
       <SignedInBar student={student} stage={stage} onSignOut={signOut} />
       {error && stage !== "active" && <Callout>{error}</Callout>}
 
@@ -693,16 +704,22 @@ function ConsentScreen({
       </ul>
 
       {student && (
-        <dl className="mt-6 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="font-semibold text-slate-500">Course</dt>
-            <dd className="font-bold text-slate-900">{courseLabel(student.course)}</dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-slate-500">Your saved-work code</dt>
-            <dd className="font-bold text-slate-900">{student.access_code}</dd>
-          </div>
-        </dl>
+        <>
+          <dl className="mt-6 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-semibold text-slate-500">Course</dt>
+              <dd className="font-bold text-slate-900">{courseLabel(student.course)}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-slate-500">Your saved-work code</dt>
+              <dd className="font-bold text-slate-900">{student.access_code}</dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-xs text-slate-400">
+            Your work saves automatically. To continue later — even on another device — just sign in with the same
+            name and course.
+          </p>
+        </>
       )}
 
       {declined ? (
@@ -810,7 +827,7 @@ function TaskList({
               </div>
 
               <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">
-                Activity {task.task_number}
+                Activity {task.task_number} · ≈ 10–15 min
               </p>
               <h3 className="mt-0.5 text-lg font-extrabold text-slate-900">{task.title}</h3>
               <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-600">{task.scenario}</p>
@@ -1054,9 +1071,18 @@ function CompletionScreen({
             <p className="mt-0.5 text-xs text-slate-500">{takeawayHint}</p>
           </div>
           {!loading && !failed && summary && (
-            <button type="button" className="tm-btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={copy}>
-              <CopyIcon className="h-4 w-4" /> {copied ? "Copied!" : "Copy"}
-            </button>
+            <div className="flex shrink-0 gap-1.5">
+              <button type="button" className="tm-btn-ghost !px-3 !py-1.5 text-xs" onClick={copy}>
+                <CopyIcon className="h-4 w-4" /> {copied ? "Copied!" : "Copy"}
+              </button>
+              <button
+                type="button"
+                className="tm-btn-ghost !px-3 !py-1.5 text-xs"
+                onClick={() => downloadText("thinkmate-brief.txt", clipboardText)}
+              >
+                Download
+              </button>
+            </div>
           )}
         </div>
 
@@ -1168,9 +1194,18 @@ function ReviewScreen({ sessionId, onBack }: { sessionId: string | null; onBack:
             {isAi ? "Your thinking brief" : "Your worksheet answers"}
           </p>
           {!loading && !failed && summary && (
-            <button type="button" className="tm-btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={copy}>
-              <CopyIcon className="h-4 w-4" /> {copied ? "Copied!" : "Copy"}
-            </button>
+            <div className="flex shrink-0 gap-1.5">
+              <button type="button" className="tm-btn-ghost !px-3 !py-1.5 text-xs" onClick={copy}>
+                <CopyIcon className="h-4 w-4" /> {copied ? "Copied!" : "Copy"}
+              </button>
+              <button
+                type="button"
+                className="tm-btn-ghost !px-3 !py-1.5 text-xs"
+                onClick={() => downloadText("thinkmate-work.txt", clipboardText)}
+              >
+                Download
+              </button>
+            </div>
           )}
         </div>
         <div className="mt-3 rounded-2xl bg-slate-50 p-4">
@@ -1193,6 +1228,22 @@ function ReviewScreen({ sessionId, onBack }: { sessionId: string | null; onBack:
       </div>
     </section>
   );
+}
+
+function downloadText(filename: string, text: string) {
+  try {
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    /* download not available in this context */
+  }
 }
 
 function initials(name?: string | null): string {

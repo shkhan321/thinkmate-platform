@@ -67,6 +67,20 @@ export function ThinkMateChat({
     }
   }
 
+  function handleFinish() {
+    const coveredCount = covered.size;
+    if (
+      coveredCount < 3 &&
+      !window.confirm(
+        `You've worked through ${coveredCount} of ${REASONING_STEPS.length} thinking steps. ` +
+          "A bit more discussion usually makes a stronger answer. Finish anyway?"
+      )
+    ) {
+      return;
+    }
+    void onFinish();
+  }
+
   async function getHint() {
     if (hintLoading) return;
     setHintLoading(true);
@@ -117,7 +131,7 @@ export function ThinkMateChat({
         <button
           className="tm-btn-ghost mt-4 w-full"
           type="button"
-          onClick={() => void onFinish()}
+          onClick={handleFinish}
           disabled={exchanges === 0 || busy}
         >
           Finish &amp; save
