@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import {
   COURSES,
@@ -8,6 +8,7 @@ import {
   courseLabel,
   firstName,
   modelModeLabel,
+  projectDraftKey,
   studentProgress,
   taskActionLabel,
   type StudentStage
@@ -39,10 +40,21 @@ export default function App() {
   const [view, setView] = useState<View>("student");
   const [health, setHealth] = useState<Health | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
-  const [studentActive, setStudentActive] = useState(false);
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
+  }, []);
+
+  // The research/admin area is not advertised to students. The team reaches it
+  // via the URL hash (e.g. .../#admin), still behind the admin password.
+  useEffect(() => {
+    function applyHash() {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === "#admin" || hash === "#research") setView("admin");
+    }
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
   }, []);
 
   return (
@@ -57,13 +69,13 @@ export default function App() {
 
       <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
         {view === "student" ? (
-          <StudentExperience onOpenTour={() => setTourOpen(true)} onActiveChange={setStudentActive} />
+          <StudentExperience onOpenTour={() => setTourOpen(true)} />
         ) : (
           <AdminPanel />
         )}
       </main>
 
-      <SiteFooter view={view} setView={setView} showResearchLink={!studentActive} />
+      <SiteFooter view={view} setView={setView} />
       {tourOpen && <QuickTour onClose={() => setTourOpen(false)} />}
     </div>
   );
@@ -82,7 +94,7 @@ function TopBar({
 }) {
   const online = health ? health.model_mode !== "demo" : false;
   return (
-    <header className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <button type="button" onClick={() => setView("student")} className="rounded-xl">
           <Wordmark />
@@ -114,44 +126,26 @@ function TopBar({
   );
 }
 
-function SiteFooter({
-  view,
-  setView,
-  showResearchLink
-}: {
-  view: View;
-  setView: (view: View) => void;
-  showResearchLink: boolean;
-}) {
+function SiteFooter({ view, setView }: { view: View; setView: (view: View) => void }) {
   return (
-    <footer className="border-t border-white/60 px-4 py-6 sm:px-6">
+    <footer className="border-t border-slate-200 px-4 py-6 sm:px-6">
       <div className="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-400 sm:flex-row sm:text-left">
         <p>ThinkMate · UAE University Teaching &amp; Learning pilot</p>
-        {view === "admin" ? (
-          <span className="font-semibold text-brand-600">Research team area</span>
-        ) : (
-          showResearchLink && (
-            <button
-              type="button"
-              className="font-semibold text-slate-400 hover:text-brand-600"
-              onClick={() => setView("admin")}
-            >
-              Research team
-            </button>
-          )
+        {view === "admin" && (
+          <button
+            type="button"
+            className="font-semibold text-brand-600 hover:text-brand-700"
+            onClick={() => setView("student")}
+          >
+            ← Back to student view
+          </button>
         )}
       </div>
     </footer>
   );
 }
 
-function StudentExperience({
-  onOpenTour,
-  onActiveChange
-}: {
-  onOpenTour: () => void;
-  onActiveChange: (active: boolean) => void;
-}) {
+function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   const [stage, setStage] = useState<StudentStage>("login");
   const [student, setStudent] = useState<Student | null>(null);
   const [tasks, setTasks] = useState<PilotTask[]>([]);
@@ -160,11 +154,47 @@ function StudentExperience({
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  // Let the app shell know whether a student is signed in (controls the footer's
-  // research-team link so students don't stumble into the admin area).
+  const stageRef = useRef<StudentStage>(stage);
+  const studentRef = useRef<Student | null>(student);
   useEffect(() => {
-    onActiveChange(student !== null);
-  }, [student, onActiveChange]);
+    stageRef.current = stage;
+  }, [stage]);
+  useEffect(() => {
+    studentRef.current = student;
+  }, [student]);
+
+  // Map the browser Back button to an in-app "back to activities" while a
+  // student is in an activity, so Back never leaves the app to a blank page.
+  useEffect(() => {
+    if (stage === "active") {
+      try {
+        window.history.pushState({ tm: "activity" }, "");
+      } catch {
+        /* history unavailable: fall back to default behaviour */
+      }
+    }
+  }, [stage]);
+
+  useEffect(() => {
+    function onPopState() {
+      const current = stageRef.current;
+      if (current === "active" || current === "wrapup" || current === "complete") {
+        try {
+          window.history.pushState({ tm: "trap" }, "");
+        } catch {
+          /* ignore */
+        }
+        setActiveTask(null);
+        setSession(null);
+        setError("");
+        setStage("tasks");
+        const sid = studentRef.current?.student_id;
+        if (sid) api.tasks(sid).then((result) => setTasks(result.tasks)).catch(() => undefined);
+      }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Resume a saved session on reload so students never lose their place.
   useEffect(() => {
@@ -257,6 +287,8 @@ function StudentExperience({
       const updated = { ...student, project_title: result.project_title, project_goal: result.project_goal };
       setStudent(updated);
       persist(updated);
+      const draftKey = projectDraftKey(student.student_id);
+      if (draftKey) window.localStorage.removeItem(draftKey);
       await loadTasks(student.student_id);
       setStage("tasks");
     } catch (err) {

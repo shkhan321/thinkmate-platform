@@ -20,11 +20,23 @@ export function Worksheet({
   onFinish: () => Promise<void> | void;
   onBack: () => void;
 }) {
-  const [responses, setResponses] = useState<Record<string, string>>({});
+  const draftKey = `thinkmate.worksheetdraft.${session.id}`;
+
+  function readDraft(): Record<string, string> {
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  const [responses, setResponses] = useState<Record<string, string>>(() => readDraft());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Resume any answers the student already saved for this worksheet.
+  // Resume any answers the student already submitted for this worksheet
+  // (the local draft above already restored anything typed but not submitted).
   useEffect(() => {
     let active = true;
     api
@@ -47,16 +59,26 @@ export function Worksheet({
     };
   }, [session.id]);
 
+  // Keep a local draft so typed answers survive a refresh, browser Back, or
+  // accidental navigation before the worksheet is submitted.
+  useEffect(() => {
+    try {
+      const hasAny = Object.values(responses).some((value) => value.trim().length > 0);
+      if (hasAny) window.localStorage.setItem(draftKey, JSON.stringify(responses));
+      else window.localStorage.removeItem(draftKey);
+    } catch {
+      /* private mode: drafts just won't persist */
+    }
+  }, [draftKey, responses]);
+
   const stepKeys = useMemo(() => task.worksheet_steps.map((step) => step.key), [task]);
   const completedCount = stepKeys.filter((key) => (responses[key] || "").trim().length > 0).length;
   const ready = canSubmitWorksheet(stepKeys, responses);
   const progress = stepKeys.length ? Math.round((completedCount / stepKeys.length) * 100) : 0;
 
   function handleBack() {
-    const hasTyped = Object.values(responses).some((value) => value.trim().length > 0);
-    if (hasTyped && !window.confirm("Leave this worksheet? Your answers here are not saved until you submit.")) {
-      return;
-    }
+    // Typed answers are kept on this device and restored if they return, so
+    // leaving is safe and needs no scary warning.
     onBack();
   }
 
@@ -66,6 +88,11 @@ export function Worksheet({
     try {
       for (const step of task.worksheet_steps) {
         await api.worksheetResponse(session.id, step.key, step.prompt, responses[step.key]);
+      }
+      try {
+        window.localStorage.removeItem(draftKey);
+      } catch {
+        /* ignore */
       }
       await onFinish();
     } catch (err) {

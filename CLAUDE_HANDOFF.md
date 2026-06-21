@@ -2,6 +2,18 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — QA round 2 (mobile, drafts, back button, admin) (2026-06-19)
+
+Second external QA report. Frontend-only fixes:
+
+- **Header is now solid** (`bg-white`, not translucent) so content can't ghost through the sticky header on scroll (the "header covers the prompt on mobile" report).
+- **Project text persists on refresh** before "Start thinking" (localStorage draft, restored on load, cleared on save) — makes "saved automatically" true. Same draft persistence added to the **worksheet** (typed answers survive refresh / browser Back).
+- **Browser Back during an activity** now maps to in-app "back to activities" via a `popstate` guard, instead of leaving the SPA to a blank page.
+- **Admin:** Export JSON/CSV are disabled until a successful "Load summary" (auth); changing the password re-locks them. Admin heading is now an `<h1>`.
+- **Research/admin is no longer advertised to students:** the footer link is gone; the team reaches it via the URL hash **`.../#admin`** (still password-gated).
+- **Not changed (by design):** unknown routes return 200 with the app — standard single-page-app fallback; there are no shareable sub-routes to 404 on.
+- Tests: backend 31 passed, frontend 11 passed.
+
 ## Latest Change — End-of-session feedback (2026-06-19)
 
 - Simple **feedback step on the completion screen**: a 1–5 star rating + an optional one-line comment, asked once (a `localStorage` flag per student stops re-prompting). New `feedback` table, `POST /api/feedback`, included in the admin export (ratings always; free-text comments only in the non-blinded export).

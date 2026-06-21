@@ -1,5 +1,5 @@
-import { FormEvent, useState } from "react";
-import { courseLabel, firstName, projectExamples } from "../flow";
+import { FormEvent, useEffect, useState } from "react";
+import { courseLabel, firstName, projectDraftKey, projectExamples } from "../flow";
 import type { Student } from "../types";
 import { Callout } from "./ui";
 import { ArrowRightIcon, SparkIcon } from "./icons";
@@ -15,10 +15,37 @@ export function ProjectIntake({
   error: string;
   pending: boolean;
 }) {
-  const [title, setTitle] = useState(student?.project_title ?? "");
-  const [goal, setGoal] = useState(student?.project_goal ?? "");
+  const draftKey = projectDraftKey(student?.student_id);
+
+  function readDraft(): { title: string; goal: string } | null {
+    if (!draftKey) return null;
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      return raw ? (JSON.parse(raw) as { title: string; goal: string }) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const draft = readDraft();
+  const [title, setTitle] = useState(draft?.title ?? student?.project_title ?? "");
+  const [goal, setGoal] = useState(draft?.goal ?? student?.project_goal ?? "");
   const ready = title.trim().length > 0 && goal.trim().length > 0;
   const examples = projectExamples(student?.course ?? "engineering");
+
+  // Keep a local draft so a refresh before "Start thinking" never loses typing.
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      if (title.trim() || goal.trim()) {
+        window.localStorage.setItem(draftKey, JSON.stringify({ title, goal }));
+      } else {
+        window.localStorage.removeItem(draftKey);
+      }
+    } catch {
+      /* private mode: drafts just won't persist */
+    }
+  }, [draftKey, title, goal]);
 
   function submit(event: FormEvent) {
     event.preventDefault();

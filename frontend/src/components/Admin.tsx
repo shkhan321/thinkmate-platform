@@ -5,6 +5,7 @@ import { Callout } from "./ui";
 
 export function AdminPanel() {
   const [password, setPassword] = useState("");
+  const [authed, setAuthed] = useState(false);
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [exportText, setExportText] = useState("");
   const [blinded, setBlinded] = useState(true);
@@ -13,8 +14,12 @@ export function AdminPanel() {
   async function loadSummary() {
     setError("");
     try {
-      setSummary(await api.adminSummary(password));
+      const result = await api.adminSummary(password);
+      setSummary(result);
+      setAuthed(true);
     } catch (err) {
+      setAuthed(false);
+      setSummary(null);
       setError(err instanceof Error ? err.message : "Admin request failed.");
     }
   }
@@ -46,7 +51,7 @@ export function AdminPanel() {
     <section className="tm-rise mx-auto max-w-4xl space-y-5">
       <div className="tm-card p-6">
         <p className="text-xs font-bold uppercase tracking-wide text-brand-600">Research team only</p>
-        <h2 className="mt-1 text-2xl font-extrabold text-slate-900">Pilot monitoring &amp; export</h2>
+        <h1 className="mt-1 text-2xl font-extrabold text-slate-900">Pilot monitoring &amp; export</h1>
         <p className="mt-1 text-sm text-slate-600">
           View live pilot counts and export data for analysis or blinded rubric scoring. Do not share the admin
           password with students.
@@ -62,7 +67,10 @@ export function AdminPanel() {
           <input
             type="password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setAuthed(false);
+            }}
             placeholder="Admin password"
             className="tm-input"
           />
@@ -77,16 +85,19 @@ export function AdminPanel() {
           </label>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button className="tm-btn-primary" onClick={loadSummary} disabled={!password}>
-            Load summary
+            {authed ? "Refresh summary" : "Load summary"}
           </button>
-          <button className="tm-btn-ghost" onClick={() => exportData("json")} disabled={!password}>
+          <button className="tm-btn-ghost" onClick={() => exportData("json")} disabled={!authed}>
             Export JSON
           </button>
-          <button className="tm-btn-ghost" onClick={() => exportData("csv")} disabled={!password}>
+          <button className="tm-btn-ghost" onClick={() => exportData("csv")} disabled={!authed}>
             Export CSV
           </button>
+          {!authed && (
+            <span className="text-xs text-slate-400">Load the summary first to unlock exports.</span>
+          )}
         </div>
       </div>
 

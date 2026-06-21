@@ -66,6 +66,10 @@ export function courseCode(course: string): string {
   return COURSES.find((item) => item.value === course)?.code ?? "";
 }
 
+export function projectDraftKey(studentId: string | null | undefined): string | null {
+  return studentId ? `thinkmate.projectdraft.${studentId}` : null;
+}
+
 export function projectExamples(course: string): { title: string; goal: string } {
   if (course === "psychology") {
     return {
