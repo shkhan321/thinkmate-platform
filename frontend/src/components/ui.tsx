@@ -131,7 +131,7 @@ export function ReasoningMap({
 
 export function Callout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+    <div role="alert" className="flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
       <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-rose-200 text-xs font-bold text-rose-700">
         !
       </span>

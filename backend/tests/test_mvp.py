@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -230,6 +231,7 @@ def test_project_intake_saves_and_grounds_tutor(tmp_path):
     client = make_client(tmp_path)
     student = client.post("/api/auth/start", json={"name": "Layla", "course": "engineering"}).json()
     sid = student["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
 
     saved = client.post(
         "/api/project",
@@ -251,6 +253,7 @@ def test_project_intake_saves_and_grounds_tutor(tmp_path):
 def test_project_requires_title_and_goal(tmp_path):
     client = make_client(tmp_path)
     sid = client.post("/api/auth/start", json={"name": "Noor", "course": "psychology"}).json()["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
     assert client.post("/api/project", json={"student_id": sid, "project_title": "  ", "project_goal": "x"}).status_code == 422
     assert client.post("/api/project", json={"student_id": sid, "project_title": "x", "project_goal": "  "}).status_code == 422
 
@@ -297,6 +300,7 @@ def test_seed_tasks_are_project_agnostic(tmp_path):
 def test_project_is_exported_but_hidden_when_blinded(tmp_path):
     client = make_client(tmp_path)
     student = client.post("/api/auth/start", json={"name": "Fatima", "course": "engineering"}).json()
+    client.post("/api/consent", json={"student_id": student["student_id"], "accepted": True})
     client.post(
         "/api/project",
         json={"student_id": student["student_id"], "project_title": "Recycled composite panel", "project_goal": "test stiffness"},
@@ -480,6 +484,7 @@ def test_feedback_is_saved_validated_and_exported(tmp_path):
     client = make_client(tmp_path)
     student = client.post("/api/auth/start", json={"name": "Hala", "course": "engineering"}).json()
     sid = student["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
 
     ok = client.post("/api/feedback", json={"student_id": sid, "rating": 5, "comment": "Made me think harder."})
     assert ok.status_code == 200
@@ -504,6 +509,87 @@ def test_feedback_is_saved_validated_and_exported(tmp_path):
     # Ratings still export when blinded, but free-text comments are withheld.
     assert any(f["rating"] == 5 for f in blinded["feedback"])
     assert all(f["comment"] is None for f in blinded["feedback"])
+
+
+def test_worksheet_session_cannot_get_ai_hint(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Adib", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+    # The non-AI control must never reach the model, even via /dialogue/hint.
+    assert client.post("/api/dialogue/hint", json={"session_id": session_id}).status_code == 400
+
+
+def test_completed_session_is_read_only(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Wael", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "A claim."})
+    client.post(f"/api/sessions/{session_id}/complete")
+
+    # After completion the artifact is locked.
+    assert client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "more"}).status_code == 409
+    assert client.post(f"/api/sessions/{session_id}/answer", json={"answer": "x"}).status_code == 409
+
+
+def test_worksheet_response_upserts_no_duplicates(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Huda2", "course": "psychology"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+    client.post("/api/worksheet/response", json={"session_id": session_id, "step_key": "claim", "prompt": "P", "response": "first"})
+    client.post("/api/worksheet/response", json={"session_id": session_id, "step_key": "claim", "prompt": "P", "response": "second"})
+
+    rows = client.get(f"/api/sessions/{session_id}/state").json()["worksheet_responses"]
+    claim_rows = [r for r in rows if r["step_key"] == "claim"]
+    assert len(claim_rows) == 1
+    assert claim_rows[0]["response"] == "second"
+
+
+def test_blinded_export_does_not_leak_condition(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Lina", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "Secret project", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "My reasoning here."})
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    # No condition tells: no turns table, no move metadata, no condition field.
+    assert "turns" not in blinded
+    assert "scoring_artifacts" in blinded
+    blob = json.dumps(blinded)
+    assert "thinkmate" not in blob and "worksheet" not in blob
+    assert "move_type" not in blob and "paul_elder" not in blob
+    # The student's reasoning is present for scoring.
+    assert any("My reasoning here." in a["reasoning"] for a in blinded["scoring_artifacts"])
+
+
+def test_production_rejects_demo_seeding(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'p.db'}",
+        admin_password="strong-pass",
+        app_env="production",
+        seed_demo_students=True,
+    )
+    with pytest.raises(RuntimeError, match="SEED_DEMO_STUDENTS"):
+        create_app(settings)
 
 
 def test_production_rejects_default_admin_password(tmp_path):

@@ -178,6 +178,7 @@ export function Worksheet({
                     setResponses((current) => ({ ...current, [step.key]: event.target.value }))
                   }
                   placeholder={step.example || "Write your answer here…"}
+                  aria-label={`${step.label}: ${step.prompt}`}
                 />
                 {step.example && (
                   <p className="mt-1 pl-10 text-xs text-slate-400">Stuck? {step.example}</p>

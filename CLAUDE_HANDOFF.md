@@ -2,6 +2,23 @@
 
 Last updated: 2026-06-19
 
+## Latest Change — Codex review fixes (2026-06-19)
+
+Ran a full read-only review with the local **Codex CLI (gpt-5.5, xhigh)** ("full DNA" prompt). Applied the high-value, safe findings:
+
+- **Research integrity:** `/api/dialogue/hint` now rejects non-ThinkMate sessions (the non-AI worksheet control can no longer reach the model via hints). Blinded export redesigned — it now emits **condition-free normalized `scoring_artifacts`** (the student's own reasoning only, with a blinded `P#` key, no tutor text / move tags / condition field / `turns` table), so raters can't infer condition. Full (non-blinded) export keeps everything for analysis and now also includes `final_answer` + feedback in CSV.
+- **Data integrity:** completed sessions are **read-only** (dialogue turn / worksheet response / answer endpoints return 409 after completion); worksheet responses **upsert** by `(session, step)` (no duplicate rows). The completed activity card now shows only "Review my work" (no "Open again").
+- **Consent/privacy:** consent now gates `/api/project` and `/api/feedback` too (backend defense-in-depth). Consent screen discloses external-AI processing and that the name isn't sent. Production startup now **fails if `SEED_DEMO_STUDENTS` is true**.
+- **Security:** admin password compared with `secrets.compare_digest` (constant-time).
+- **Safeguard** broadened (more answer-giving phrases + max-length cap). **A11y:** error Callout `role="alert"`, chat log `aria-live`, labelled chat/worksheet/wrap-up textareas. **Runtime:** Nixpacks aligned to Python 3.12.
+- Tests: backend 37 passed, frontend 11 passed.
+
+**Flagged for your decision (NOT changed — architecture / REC calls):**
+1. **No real participant auth** — endpoints trust `student_id`/`session_id` from the browser (UUIDs aren't guessable, but there's no ownership check). A token/cookie session would fix it but adds friction to the "just name" login. I can implement signed participant tokens if you want.
+2. **Admin auth** is a single static header password (no rate-limit/audit) — fine for a small pilot; upgrade if data sensitivity grows.
+3. **Adaptive tutor** — still a fixed move sequence (now with memory). A rubric-based student-state scorer (claim/evidence/assumptions/constraints/validation/risk) is the biggest next upgrade.
+4. **Migrations** are hand-rolled `ALTER TABLE` (fine now; Alembic later). Railway builds via Nixpacks (not the Dockerfile, which CI builds) — document or switch.
+
 ## Latest Change — Tutor memory + Review-your-work (2026-06-19)
 
 Researched proven Socratic-tutor patterns (adaptive scaffolding, never-answer, thinking-partner-with-memory) and strengthened the build:

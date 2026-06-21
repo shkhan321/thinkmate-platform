@@ -673,8 +673,10 @@ function ConsentScreen({
       </span>
       <h2 className="mt-3 text-2xl font-extrabold text-slate-900">A quick note, then you&rsquo;re in</h2>
       <p className="mt-2 text-slate-600">
-        This is a short university learning activity. ThinkMate saves your activity answers and the
-        discussion or worksheet you complete, so your reasoning can be reviewed later by the research team.
+        This is a short university learning activity. ThinkMate saves your activity answers and the discussion or
+        worksheet you complete, stored securely so your reasoning can be reviewed later by the research team. In the
+        ThinkMate discussion, your messages are sent to a trusted external AI service to generate the tutor&rsquo;s
+        questions. Your name is never sent to that service.
       </p>
 
       <ul className="mt-5 space-y-2.5">
@@ -817,14 +819,9 @@ function TaskList({
               </p>
 
               {task.completed ? (
-                <div className="mt-4 flex gap-2">
-                  <button className="tm-btn-primary flex-1" onClick={() => onReview(task)} disabled={pending}>
-                    Review my work
-                  </button>
-                  <button className="tm-btn-ghost shrink-0" onClick={() => onStart(task)} disabled={pending}>
-                    {pending ? "Opening…" : "Open again"}
-                  </button>
-                </div>
+                <button className="tm-btn-primary mt-4 w-full" onClick={() => onReview(task)} disabled={pending}>
+                  Review my work
+                </button>
               ) : (
                 <button className="tm-btn-primary mt-4 w-full" onClick={() => onStart(task)} disabled={pending}>
                   {pending
@@ -880,6 +877,7 @@ function WrapUp({
         value={answer}
         onChange={(event) => setAnswer(event.target.value)}
         placeholder="In one or two sentences: my answer is… because…"
+        aria-label="Your answer"
         autoFocus
       />
 

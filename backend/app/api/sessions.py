@@ -103,6 +103,8 @@ def save_final_answer(session_id: str, payload: AnswerRequest, db: Session = Dep
     session = db.get(PilotSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    if session.status == "complete":
+        raise HTTPException(status_code=409, detail="This activity is already finished.")
     answer = payload.answer.strip()
     if not answer:
         raise HTTPException(status_code=422, detail="Please write your answer, or skip this step.")

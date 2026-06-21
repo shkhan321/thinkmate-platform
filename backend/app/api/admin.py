@@ -1,3 +1,4 @@
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -17,7 +18,7 @@ def require_admin(
     x_admin_password: Annotated[str | None, Header(alias="X-Admin-Password")] = None,
     settings: Settings = Depends(get_app_settings),
 ) -> None:
-    if not x_admin_password or x_admin_password != settings.admin_password:
+    if not x_admin_password or not secrets.compare_digest(x_admin_password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid admin password.")
 
 

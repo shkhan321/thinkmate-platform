@@ -29,6 +29,8 @@ def dialogue_turn(
         raise HTTPException(status_code=404, detail="Session not found.")
     if session.condition != "thinkmate":
         raise HTTPException(status_code=400, detail="This session is assigned to guided worksheet.")
+    if session.status == "complete":
+        raise HTTPException(status_code=409, detail="This activity is already finished.")
     task = db.get(Task, session.task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
@@ -98,6 +100,10 @@ def dialogue_hint(
     session = db.get(PilotSession, payload.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    # Research integrity: the guided-worksheet condition is the NON-AI control.
+    # It must never reach the model, including via hints.
+    if session.condition != "thinkmate":
+        raise HTTPException(status_code=400, detail="Hints are only available in the ThinkMate discussion.")
     student = db.get(Student, session.student_id)
 
     last_tutor = db.scalar(

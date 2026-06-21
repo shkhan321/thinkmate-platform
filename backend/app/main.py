@@ -100,8 +100,11 @@ def ensure_schema_migrations(engine) -> None:
 
 
 def validate_settings(settings: Settings) -> None:
-    if settings.app_env.lower() == "production" and settings.admin_password in DEFAULT_ADMIN_PASSWORDS:
+    is_production = settings.app_env.lower() == "production"
+    if is_production and settings.admin_password in DEFAULT_ADMIN_PASSWORDS:
         raise RuntimeError("ADMIN_PASSWORD must be changed before production startup.")
+    if is_production and settings.seed_demo_students:
+        raise RuntimeError("SEED_DEMO_STUDENTS must be false in production (public demo accounts are unsafe).")
 
 
 def parse_cors_origins(raw_origins: str) -> list[str]:
