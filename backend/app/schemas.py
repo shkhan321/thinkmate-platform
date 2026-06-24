@@ -1,19 +1,27 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+# Outer caps on free text reaching the database and the paid model. These are
+# generous (well above any genuine student answer) and exist only to stop a
+# single unauthenticated request from storing megabytes or running up model
+# cost. Endpoints may trim further; these reject the absurd before that.
+ID_MAX = 64
+SHORT_TEXT_MAX = 1000
+LONG_TEXT_MAX = 6000
 
 
 class AccessCodeRequest(BaseModel):
-    access_code: str
+    access_code: str = Field(max_length=ID_MAX)
 
 
 class StartRequest(BaseModel):
-    name: str
-    course: str
+    name: str = Field(max_length=120)
+    course: str = Field(max_length=40)
 
 
 class ProjectRequest(BaseModel):
-    student_id: str
-    project_title: str
-    project_goal: str
+    student_id: str = Field(max_length=ID_MAX)
+    project_title: str = Field(max_length=400)
+    project_goal: str = Field(max_length=LONG_TEXT_MAX)
 
 
 class AccessCodeResponse(BaseModel):
@@ -21,7 +29,6 @@ class AccessCodeResponse(BaseModel):
     access_code: str
     display_name: str | None = None
     course: str
-    sequence: str
     project_title: str | None = None
     project_goal: str | None = None
     consent_accepted: bool
@@ -35,7 +42,7 @@ class ProjectResponse(BaseModel):
 
 
 class ConsentRequest(BaseModel):
-    student_id: str
+    student_id: str = Field(max_length=ID_MAX)
     accepted: bool
 
 
@@ -62,8 +69,8 @@ class TaskListResponse(BaseModel):
 
 
 class StartSessionRequest(BaseModel):
-    student_id: str
-    task_id: str
+    student_id: str = Field(max_length=ID_MAX)
+    task_id: str = Field(max_length=ID_MAX)
 
 
 class SessionResponse(BaseModel):
@@ -88,7 +95,7 @@ class SessionSummaryResponse(BaseModel):
 
 
 class AnswerRequest(BaseModel):
-    answer: str
+    answer: str = Field(max_length=LONG_TEXT_MAX)
 
 
 class AnswerResponse(BaseModel):
@@ -97,8 +104,8 @@ class AnswerResponse(BaseModel):
 
 
 class DialogueTurnRequest(BaseModel):
-    session_id: str
-    content: str
+    session_id: str = Field(max_length=ID_MAX)
+    content: str = Field(max_length=LONG_TEXT_MAX)
 
 
 class TurnResponse(BaseModel):
@@ -121,7 +128,7 @@ class DialogueTurnResponse(BaseModel):
 
 
 class HintRequest(BaseModel):
-    session_id: str
+    session_id: str = Field(max_length=ID_MAX)
 
 
 class HintResponse(BaseModel):
@@ -129,10 +136,10 @@ class HintResponse(BaseModel):
 
 
 class WorksheetResponseRequest(BaseModel):
-    session_id: str
-    step_key: str
-    prompt: str
-    response: str
+    session_id: str = Field(max_length=ID_MAX)
+    step_key: str = Field(max_length=ID_MAX)
+    prompt: str = Field(max_length=SHORT_TEXT_MAX)
+    response: str = Field(max_length=LONG_TEXT_MAX)
 
 
 class WorksheetResponseResponse(BaseModel):
@@ -153,9 +160,9 @@ class SessionStateResponse(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    student_id: str
+    student_id: str = Field(max_length=ID_MAX)
     rating: int
-    comment: str | None = None
+    comment: str | None = Field(default=None, max_length=SHORT_TEXT_MAX)
 
 
 class FeedbackResponse(BaseModel):

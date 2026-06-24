@@ -9,35 +9,35 @@ importers:
   .:
     dependencies:
       '@vitejs/plugin-react':
-        specifier: latest
+        specifier: ^6.0.2
         version: 6.0.2(vite@8.0.16(jiti@2.7.0))
       react:
-        specifier: latest
+        specifier: ^19.2.7
         version: 19.2.7
       react-dom:
-        specifier: latest
+        specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
       typescript:
-        specifier: latest
+        specifier: ^6.0.3
         version: 6.0.3
       vite:
-        specifier: latest
+        specifier: ^8.0.16
         version: 8.0.16(jiti@2.7.0)
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.1
         version: 4.3.1(vite@8.0.16(jiti@2.7.0))
       '@types/react':
-        specifier: latest
+        specifier: ^19.2.17
         version: 19.2.17
       '@types/react-dom':
-        specifier: latest
+        specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.17)
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.1
       vitest:
-        specifier: latest
+        specifier: ^4.1.9
         version: 4.1.9(vite@8.0.16(jiti@2.7.0))
 
 packages:

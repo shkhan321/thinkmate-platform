@@ -29,8 +29,17 @@ export function ThinkMateChat({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const exchanges = Math.ceil(turns.length / 2);
-  const covered = coveredReasoning(turns.filter((t) => t.role === "tutor").map((t) => t.move_type));
+  // A reasoning step counts as "covered" only once the student has RESPONDED to
+  // the question that raised it (a student turn follows that tutor turn). This
+  // measures reasoning the student actually demonstrated — not merely questions
+  // ThinkMate asked, which a student could trigger with low-effort replies — and
+  // keeps it comparable to the worksheet's fill-based progress.
+  const answeredMoveTypes = turns
+    .filter((turn, index) => turn.role === "tutor" && turns.slice(index + 1).some((later) => later.role === "student"))
+    .map((turn) => turn.move_type);
+  const covered = coveredReasoning(answeredMoveTypes);
   const currentKey = REASONING_STEPS.find((step) => !covered.has(step.key))?.key ?? null;
+  const allStepsCovered = covered.size === REASONING_STEPS.length;
 
   // Resume the saved conversation when reopening this activity.
   useEffect(() => {
@@ -128,15 +137,21 @@ export function ThinkMateChat({
           </ul>
         </div>
 
+        {allStepsCovered && (
+          <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 p-3 text-center">
+            <p className="text-sm font-semibold text-brand-700">All five thinking steps explored</p>
+            <p className="mt-0.5 text-xs text-brand-600">Ready to write your answer?</p>
+          </div>
+        )}
         <button
-          className="tm-btn-ghost mt-4 w-full"
+          className={`mt-4 w-full ${allStepsCovered ? "tm-btn-primary" : "tm-btn-ghost"}`}
           type="button"
           onClick={handleFinish}
           disabled={exchanges === 0 || busy}
         >
           Finish &amp; save
         </button>
-        <p className="mt-3 text-center text-xs text-slate-400">
+        <p className="mt-3 text-center text-xs text-slate-500">
           {exchanges === 0
             ? "Send at least one message to begin"
             : `${exchanges} exchange${exchanges === 1 ? "" : "s"} so far`}
@@ -162,7 +177,9 @@ export function ThinkMateChat({
         <div
           ref={scrollRef}
           className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5"
+          role="log"
           aria-live="polite"
+          aria-relevant="additions"
           aria-label="Conversation with ThinkMate"
         >
           {turns.length === 0 && (
@@ -246,7 +263,7 @@ function MessageBubble({ turn }: { turn: Turn }) {
   const isTutor = turn.role === "tutor";
   if (isTutor) {
     return (
-      <div className="flex gap-2.5">
+      <div className="tm-rise flex gap-2.5">
         <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 text-white">
           <SparkIcon className="h-4 w-4" />
         </span>
@@ -260,7 +277,7 @@ function MessageBubble({ turn }: { turn: Turn }) {
     );
   }
   return (
-    <div className="flex justify-end">
+    <div className="tm-rise flex justify-end">
       <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-brand-600 px-4 py-3 text-white shadow-sm">
         <p className="whitespace-pre-wrap leading-relaxed">{turn.content}</p>
       </div>

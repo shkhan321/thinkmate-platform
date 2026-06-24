@@ -1,6 +1,71 @@
 # ThinkMate Claude Handoff
 
-Last updated: 2026-06-19
+Last updated: 2026-06-24
+
+## Latest Change — Pilot-readiness pass: blockers + majors (2026-06-24)
+
+A full multi-agent review (10 dimensions, adversarial verification) found 8 blockers
+and 26 majors. This pass fixed every blocker and the high-value majors, with tests for
+each. Backend 52 passed, frontend 11 passed, build clean, live flow verified.
+
+Deployment / config:
+- **railway.json now builds the Dockerfile** (was NIXPACKS, whose `nixpacks.toml` had no
+  start command — the deploy could fail to boot). `nixpacks.toml` is kept as a complete
+  fallback (added `[start]`). CI builds the same Dockerfile it now ships.
+- **Production safety is fail-closed:** `Dockerfile` bakes `APP_ENV=production`, so admin
+  password / demo-seed / CORS checks are on by default in any deployed image.
+- **CORS no longer crashes a live deploy:** wildcard/empty `CORS_ORIGINS` in production is
+  downgraded to same-origin only (the SPA is same-origin) with a warning, instead of the
+  hard RuntimeError that would have crashed the current Railway config. `effective_cors_origins()`.
+
+Research integrity (blinding):
+- **Blinded export reworked:** each session is an independently-keyed artifact (`A0001…`,
+  not per-student), emitted in a hash-shuffled order, with empty sessions dropped — a rater
+  can no longer pair a participant's two artifacts or recover task order/condition.
+- **Demo seed codes no longer encode the arm** (`ENG-DEMO-1` not `ENG-A-001`).
+
+Consent / ethics:
+- **Withdrawal is honored and version is checked:** new `services/consent.has_active_consent`
+  uses the student's LATEST consent decision (a later decline withdraws), and re-prompts when
+  `consent_version` changes. Wired into all five gates.
+
+Security / privacy:
+- Study IDs are now 40-bit (`token_hex(5)`), so the unauthenticated access-code lookup is not
+  enumerable. Free-text fields are length-capped in schemas (DoS/cost). Empty dialogue turns
+  rejected. Admin endpoints rate-limited (`services/ratelimit`, app-scoped, students unaffected).
+
+Data integrity / concurrency:
+- Unique indexes on `sessions(student_id, task_id)` and `turns(session_id, turn_number)` (added
+  in `ensure_schema_migrations`, best-effort on pre-existing dupes). `start_session` and
+  `dialogue_turn` handle the race via IntegrityError. `complete_session` is idempotent (no
+  `completed_at` overwrite). SQLite `busy_timeout=5000` + WAL.
+
+Model robustness:
+- A 200-OK-but-non-JSON model response now falls back instead of 500-ing the student
+  (`ValueError` caught in `_poe_chat`/HF). HF `{"error": …}` envelopes no longer surface as the
+  tutor's question. `is_low_effort` no longer misflags substantive answers that merely contain a
+  stuck phrase (length-gated).
+
+Frontend:
+- **Reasoning map / finish-gate credit a step only once the student ANSWERS it** (a student turn
+  follows the tutor move), not when ThinkMate asks — a defensible, control-comparable measure.
+- `completeAndReturn` now has the `pending` guard and a non-blocking task refresh (a refresh
+  failure no longer blocks completion or invites re-submit).
+- Course picker is keyboard-operable (arrow keys + roving tabindex). Low-contrast `text-slate-400`
+  body/hint text raised to `text-slate-500` (WCAG AA). Frontend deps pinned off `latest`.
+
+Documented residuals (NOT changed — architectural / design-inherent, acceptable for a pilot):
+- No per-participant session tokens (IDOR) — conflicts with the "login by just name" requirement;
+  mitigated by unguessable UUIDs + high-entropy study IDs + admin rate-limit.
+- Safeguard is still a blocklist (broadened) — a rubric/LLM judge is the real fix.
+- Balanced randomisation and returning-student matching are not fully atomic — minimisation is
+  self-correcting and `busy_timeout` helps at pilot scale.
+- Worksheet vs chat artifacts remain structurally distinguishable (design-inherent); keying and
+  ordering tells are removed.
+
+OUTSTANDING for the operator: optionally set `CORS_ORIGINS` to the real app URL in Railway (else it
+logs a warning and serves same-origin only). Replace `PILOT_ACCESS_CODES` with approved codes that
+do NOT embed A/B. Run tests → deploy → check `/health` → click one live student flow.
 
 ## Latest Change — UX polish round (2026-06-19)
 
@@ -323,6 +388,47 @@ Deployment:
 - Dockerfile: `Dockerfile`
 - Railway config: `railway.json`
 - Nixpacks config remains in repo, but Railway is building from Dockerfile.
+
+## Iteration — 2026-06-23: interactivity, learning logic, fresh Codex pass
+
+Goal this round: make the tool more interactive and stronger for learning, then
+re-review the full DNA with Codex (gpt-5.5) and apply the findings I agree with.
+
+Interactivity + learning (this round's design pass):
+- Adaptive stuck handling: `is_low_effort()` in `services/socratic.py` detects
+  "idk / not sure / one-word filler" replies; `api/dialogue.py` then keeps the
+  tutor on the SAME reasoning step and asks an easier question (model gets a
+  `stuck` flag) instead of advancing. Step progress now tracks DISTINCT moves so
+  a repeat never skips a step.
+- Momentum cue: when all five thinking steps are explored, the chat shows an
+  "All five thinking steps explored" note and the Finish button becomes primary.
+- New messages fade/rise in (`tm-rise`); pedagogy chips now have hover tooltips
+  explaining Bloom + Paul-Elder in plain words.
+
+Codex review applied (agreed items):
+- Hints are now fill-in-the-blank FRAMES (no model-written answers).
+- Safeguard catches more recommendation phrasings ("you could use", "go with the", etc.).
+- Thinking brief is built from the student's OWN words only (tutor turns excluded).
+- A/B `sequence` is no longer sent to the browser (blinding); tests verify it via the DB.
+- Production startup now fails on wildcard CORS.
+- a11y: course picker is a radiogroup, transcript uses role="log" + aria-relevant, feedback textarea labelled.
+
+Deferred (documented, NOT done) — most are user decisions or bigger changes:
+- Auth model (Codex #5/#6): student endpoints authorize by raw session_id and
+  name-login can collide. This CONFLICTS with the user's explicit "login by just
+  name" requirement — left as-is; user to decide if a low-friction verifier is wanted.
+- Server-side completion validation (#4) + "finish without writing" (#16): would
+  change completion UX; not changed without the user.
+- Concurrency hardening (#11 atomic randomisation, #14/#15 unique constraints): low
+  real risk for a small sequential pilot; needs migrations.
+- Reasoning-map "done on ask vs answer" deep fix (#3): partially mitigated by the
+  distinct-move logic above; full fix needs backend current-move state.
+- Log hint exposure (#9), normalise blinded export shapes (#10), confirm modal (#20).
+
+Environment note: the user's global `claude-mem@thedotmack` plugin worker is broken
+(SessionStart "Failed to start worker") and was blocking the Read/Edit tools this
+session; edits were applied via Python through Bash instead. User may want to
+reinstall or disable that plugin.
 
 ## Suggested Next Work
 

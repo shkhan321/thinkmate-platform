@@ -186,7 +186,7 @@ export function Worksheet({
                   aria-label={`${step.label}: ${step.prompt}`}
                 />
                 {example && (
-                  <p className="mt-1 pl-10 text-xs text-slate-400">Stuck? {example}</p>
+                  <p className="mt-1 pl-10 text-xs text-slate-500">Stuck? {example}</p>
                 )}
               </div>
             );

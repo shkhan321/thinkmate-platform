@@ -29,6 +29,7 @@ def _build_prompt(
     project_title: str = "",
     project_goal: str = "",
     history: str = "",
+    stuck: bool = False,
 ) -> str:
     project_block = ""
     if project_title or project_goal:
@@ -37,6 +38,12 @@ def _build_prompt(
             f"What the student wants to do: {project_goal or 'not given'}\n"
         )
     history_block = f"Conversation so far:\n{history}\n\n" if history.strip() else ""
+    stuck_block = (
+        "The student seems stuck or gave a very short answer. Ask an EASIER, smaller "
+        "question that helps them take the first step. Stay on the same point — do not move on.\n"
+        if stuck
+        else ""
+    )
     return (
         "You are ThinkMate, a Socratic tutor. Do not give direct answers. "
         "Ask one short, simple question that pushes the student's reasoning.\n\n"
@@ -46,6 +53,7 @@ def _build_prompt(
         f"Target move: {move['move_type']}\n"
         f"Paul-Elder target: {move['paul_elder_target']}\n\n"
         f"{history_block}"
+        f"{stuck_block}"
         f"Student just said: {student_content}\n"
         "Your one short question (build on the conversation, do not repeat earlier questions):"
     )
@@ -57,7 +65,11 @@ def _extract_hf_text(payload) -> str:
         if isinstance(first, dict):
             return str(first.get("generated_text") or first.get("summary_text") or "")
     if isinstance(payload, dict):
-        return str(payload.get("generated_text") or payload.get("summary_text") or payload.get("error") or "")
+        # NOTE: do NOT surface payload["error"]. HuggingFace returns a 200 with
+        # {"error": "Model is loading"} for cold models/rate limits; treating that
+        # as text would print the error as the tutor's Socratic question. Return
+        # empty so the caller falls back to a safe canned question instead.
+        return str(payload.get("generated_text") or payload.get("summary_text") or "")
     return ""
 
 
@@ -99,8 +111,9 @@ def generate_tutor_turn(
     project_title: str = "",
     project_goal: str = "",
     history: str = "",
+    stuck: bool = False,
 ) -> str:
-    prompt = _build_prompt(task_title, scenario, student_content, move, project_title, project_goal, history)
+    prompt = _build_prompt(task_title, scenario, student_content, move, project_title, project_goal, history, stuck)
 
     if settings.poe_api_key:
         return _generate_poe_turn(settings, prompt, move)
@@ -125,7 +138,9 @@ def generate_tutor_turn(
                 text = text.split("Tutor question:", 1)[-1].strip()
             return text
         logger.warning("HF model %s returned empty content; using fallback question.", settings.hf_model)
-    except httpx.HTTPError as error:
+    except (httpx.HTTPError, ValueError) as error:
+        # ValueError covers a 200 OK with a non-JSON body (proxy/maintenance page),
+        # which response.json() raises as JSONDecodeError.
         logger.warning("HF model %s call failed (%s); using fallback question.", settings.hf_model, error)
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
 
@@ -156,7 +171,10 @@ def _poe_chat(settings: Settings, system: str, user: str, max_tokens: int, tempe
                 "Poe model %s returned empty content (attempt %s/%s).",
                 settings.poe_model, attempt, attempts,
             )
-        except httpx.HTTPError as error:
+        except (httpx.HTTPError, ValueError) as error:
+            # ValueError covers a 200 OK whose body is not JSON (an upstream HTML
+            # error/maintenance page), which response.json() raises as
+            # JSONDecodeError — previously uncaught, 500-ing the student.
             logger.warning(
                 "Poe model %s call failed (attempt %s/%s): %s",
                 settings.poe_model, attempt, attempts, error,
@@ -173,15 +191,16 @@ def _generate_poe_turn(settings: Settings, prompt: str, move: dict) -> str:
 
 
 HINT_SYSTEM_PROMPT = (
-    "You help a stuck university student answer ThinkMate's question about THEIR OWN capstone project. "
-    "Give ONE short example reply (max two sentences, simple English) that shows the kind of answer "
-    "expected and gives them a way to start. It is a model to adapt, not a final answer. "
-    "Do not add commentary, headings, or quotation marks."
+    "You help a stuck university student START answering ThinkMate's question about THEIR OWN capstone "
+    "project. Give ONE short sentence FRAME with blanks shown as ___ (max two sentences, simple English) "
+    "that shows the SHAPE of a good answer. Do NOT state a claim, choice, recommendation, or any content "
+    "for them — the student must fill every blank with their own project details. "
+    "No commentary, headings, or quotation marks."
 )
 
 HINT_FALLBACK = (
-    "Start with one clear sentence about your project, then add one reason or example. "
-    "For instance: “I chose this because …, and … supports it.” Then make it your own."
+    "Try a frame like: 'I chose ___ because ___, and ___ supports it.' "
+    "Fill in each blank with your own project details."
 )
 
 
@@ -218,7 +237,7 @@ SUMMARY_SYSTEM_PROMPT = (
     "new facts, opinions, or answers. Write in simple English using exactly these three labelled lines:\n"
     "Your claim: <one sentence>\n"
     "Your strongest points: <one short line, or two separated by '; '>\n"
-    "To strengthen next: <one short line on what is still open, based on the questions asked>\n"
+    "To strengthen next: <one short line on what is still open in their own reasoning>\n"
     "Keep the whole thing under 90 words. No preamble."
 )
 
@@ -235,7 +254,7 @@ def generate_session_summary(
     user_prompt = (
         f"Student's project: {project_title or 'not given'}\n"
         f"What they want to do: {project_goal or 'not given'}\n\n"
-        f"Dialogue (S = student, T = tutor):\n{transcript}\n\n"
+        f"The student's own messages (each line is what the student wrote):\n{transcript}\n\n"
         "Write the student's thinking brief now:"
     )
     if settings.poe_api_key and transcript.strip():

@@ -13,8 +13,13 @@ RUN pnpm build
 
 FROM python:3.12-slim AS runtime
 
+# APP_ENV defaults to production in the deployed image so the production safety
+# checks (admin password, demo seeding, same-origin CORS) are ON by default.
+# Railway/host env vars still override this; local development runs uvicorn
+# directly (not this image) and stays in the "development" default.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    APP_ENV=production \
     PORT=8000
 
 WORKDIR /app

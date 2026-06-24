@@ -2,11 +2,13 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.database import get_app_settings, get_db
-from app.models import Consent, PilotSession, Student, Task, Turn, WorksheetResponse
+from app.models import PilotSession, Student, Task, Turn, WorksheetResponse
+from app.services.consent import has_active_consent
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
@@ -22,21 +24,34 @@ from app.services.routing import condition_for
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
-def _ensure_consent(db: Session, student_id: str) -> None:
-    consent = db.scalar(select(Consent).where(Consent.student_id == student_id, Consent.accepted.is_(True)))
-    if consent is None:
+def _ensure_consent(db: Session, student_id: str, consent_version: str) -> None:
+    if not has_active_consent(db, student_id, consent_version):
         raise HTTPException(status_code=403, detail="Consent is required before starting a session.")
 
 
+def student_transcript(turns: list[Turn], final_answer: str | None) -> str:
+    """The student's OWN words only (tutor turns excluded), so the AI thinking
+    brief reflects the student's reasoning and never ThinkMate's phrasing. This
+    is blinding-relevant: tutor text must not bleed into a scored artifact."""
+    transcript = "\n".join(f"S: {turn.content}" for turn in turns if turn.role == "student")
+    if final_answer:
+        transcript += f"\nS (final answer): {final_answer}"
+    return transcript
+
+
 @router.post("", response_model=SessionResponse)
-def start_session(payload: StartSessionRequest, db: Session = Depends(get_db)):
+def start_session(
+    payload: StartSessionRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     student = db.get(Student, payload.student_id)
     task = db.get(Task, payload.task_id)
     if student is None or task is None:
         raise HTTPException(status_code=404, detail="Student or task not found.")
     if task.course != student.course:
         raise HTTPException(status_code=400, detail="Task does not belong to student's course.")
-    _ensure_consent(db, student.id)
+    _ensure_consent(db, student.id, settings.consent_version)
 
     # Reuse the student's existing session for this task so their work is never
     # lost on navigation and we keep one canonical record per task (no duplicates).
@@ -54,7 +69,21 @@ def start_session(payload: StartSessionRequest, db: Session = Depends(get_db)):
         condition=condition_for(student.sequence, task.task_number),
     )
     db.add(session)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost a concurrent create race (double-click / two tabs). The unique
+        # (student_id, task_id) index rejected the duplicate; return the session
+        # the winning request created so the student keeps one canonical record.
+        db.rollback()
+        existing = db.scalar(
+            select(PilotSession)
+            .where(PilotSession.student_id == student.id, PilotSession.task_id == task.id)
+            .order_by(PilotSession.started_at.desc())
+        )
+        if existing is not None:
+            return existing
+        raise
     db.refresh(session)
     return session
 
@@ -64,9 +93,12 @@ def complete_session(session_id: str, db: Session = Depends(get_db)):
     session = db.get(PilotSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
-    session.status = "complete"
-    session.completed_at = datetime.now(timezone.utc)
-    db.commit()
+    # Idempotent: completing an already-complete session must not overwrite the
+    # original completion timestamp (that would corrupt any timing analysis).
+    if session.status != "complete":
+        session.status = "complete"
+        session.completed_at = datetime.now(timezone.utc)
+        db.commit()
     return CompleteSessionResponse(id=session.id, status=session.status)
 
 
@@ -142,11 +174,7 @@ def session_summary(
     turns = db.scalars(
         select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
     ).all()
-    transcript = "\n".join(
-        f"{'S' if turn.role == 'student' else 'T'}: {turn.content}" for turn in turns
-    )
-    if session.final_answer:
-        transcript += f"\nS (final answer): {session.final_answer}"
+    transcript = student_transcript(turns, session.final_answer)
     summary = generate_session_summary(
         settings,
         project_title=(student.project_title or "") if student else "",

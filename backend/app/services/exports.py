@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import io
 
 from sqlalchemy import select
@@ -7,10 +8,19 @@ from sqlalchemy.orm import Session
 from app.models import Feedback, PilotSession, Student, Task, Turn, WorksheetResponse
 
 
-def _blinded_keys(students: list[Student]) -> dict[str, str]:
-    """Stable per-student blinded key that is NOT the DB id or study ID, so
-    raters cannot link an artifact back to a participant."""
-    return {student.id: f"P{index + 1}" for index, student in enumerate(students)}
+def _blinded_artifact_order(sessions: list[PilotSession]) -> list[PilotSession]:
+    """Order sessions for blinded scoring by a stable hash of their id, NOT by
+    start time or task number. This removes the positional tell: a rater cannot
+    recover task order (and therefore condition) from an artifact's place in the
+    list. The order is deterministic so repeated exports are reproducible."""
+    return sorted(sessions, key=lambda session: hashlib.sha256(session.id.encode()).hexdigest())
+
+
+def _artifact_key(index: int) -> str:
+    """An independent per-ARTIFACT key (e.g. A0001). Crucially NOT per-student:
+    a participant's two artifacts get two unrelated keys, so a rater cannot pair
+    them (and thus cannot use one artifact's condition to infer the other's)."""
+    return f"A{index + 1:04d}"
 
 
 def _session_reasoning(db: Session, session: PilotSession) -> str:
@@ -43,18 +53,30 @@ def build_json_export(db: Session, blinded: bool) -> dict:
     if blinded:
         # Blinded scoring export: only the student's reasoning, no identity and
         # nothing that reveals the condition (no tutor turns, move tags, or
-        # condition field). One normalized artifact per session.
-        keys = _blinded_keys(students_all)
-        artifacts = [
-            {
-                "key": keys.get(session.student_id),
-                "course": courses.get(session.student_id),
-                "reasoning": _session_reasoning(db, session),
-            }
-            for session in sessions_all
-        ]
+        # condition field). Each session becomes one independently-keyed artifact
+        # in a hash-shuffled order, so raters cannot pair a participant's two
+        # artifacts or recover task order from position. Empty (un-started)
+        # sessions are dropped so the rater is never handed blank rows.
+        # NOTE (residual, design-inherent): worksheet artifacts are a fixed set
+        # of short answers and chat artifacts are free-form, so the two arms can
+        # still differ in texture. Keying and ordering tells are removed here;
+        # the texture difference is a property of the study design itself.
+        artifacts = []
+        for index, session in enumerate(_blinded_artifact_order(sessions_all)):
+            reasoning = _session_reasoning(db, session)
+            if not reasoning.strip():
+                continue
+            artifacts.append(
+                {
+                    "key": _artifact_key(index),
+                    "course": courses.get(session.student_id),
+                    "reasoning": reasoning,
+                }
+            )
         return {
-            "students": [{"key": keys[s.id], "course": s.course} for s in students_all],
+            # Cohort composition only — one row per student with course, but NO
+            # key, so it cannot be joined back to the keyed artifacts above.
+            "students": [{"course": s.course} for s in students_all],
             "scoring_artifacts": artifacts,
             "feedback": [
                 {"rating": item.rating, "comment": None}
@@ -129,17 +151,21 @@ def build_csv_export(db: Session, blinded: bool) -> str:
     sessions = db.scalars(select(PilotSession).order_by(PilotSession.started_at)).all()
 
     if blinded:
-        # Normalized, condition-free rows for blinded scoring.
-        keys = _blinded_keys(students_all)
+        # Normalized, condition-free rows for blinded scoring: independently
+        # keyed per artifact and hash-shuffled so artifacts cannot be paired to a
+        # participant or ordered by task/start time. Empty sessions are dropped.
         courses = {student.id: student.course for student in students_all}
-        writer = csv.DictWriter(output, fieldnames=["student_key", "course", "reasoning"])
+        writer = csv.DictWriter(output, fieldnames=["artifact_key", "course", "reasoning"])
         writer.writeheader()
-        for session in sessions:
+        for index, session in enumerate(_blinded_artifact_order(list(sessions))):
+            reasoning = _session_reasoning(db, session)
+            if not reasoning.strip():
+                continue
             writer.writerow(
                 {
-                    "student_key": keys.get(session.student_id, ""),
+                    "artifact_key": _artifact_key(index),
                     "course": courses.get(session.student_id, ""),
-                    "reasoning": _session_reasoning(db, session),
+                    "reasoning": reasoning,
                 }
             )
         return output.getvalue()

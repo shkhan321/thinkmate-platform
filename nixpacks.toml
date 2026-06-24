@@ -1,3 +1,8 @@
+# NOTE: The active deploy builder is the Dockerfile (see railway.json:
+# "builder": "DOCKERFILE"). This Nixpacks config is kept only as a complete,
+# working fallback so the app still boots if the builder is ever switched back
+# to Nixpacks. The [start] phase below is REQUIRED for that — without it the
+# Nixpacks build has no run command and the container never starts.
 [phases.setup]
 nixPkgs = ["python312", "nodejs_22", "pnpm"]
 
@@ -13,5 +18,9 @@ cmds = [
   "cd frontend && pnpm build"
 ]
 
+[start]
+cmd = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+
 [variables]
 PATH = "/opt/venv/bin:$PATH"
+APP_ENV = "production"
