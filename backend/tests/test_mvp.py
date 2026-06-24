@@ -119,6 +119,79 @@ def test_poe_adapter_uses_openai_compatible_chat_endpoint(monkeypatch):
     assert captured["json"]["messages"][0]["role"] == "system"
 
 
+_MOVE = {"move_type": "evidence", "paul_elder_target": "evidence", "prompt": "What evidence?"}
+
+
+def test_gemini_is_primary_with_poe_fallback_when_busy(monkeypatch):
+    import httpx
+
+    calls = []
+
+    class Resp:
+        def __init__(self, content):
+            self._content = content
+
+        def raise_for_status(self):
+            if self._content is None:
+                raise httpx.HTTPError("Gemini is busy (503)")
+
+        def json(self):
+            return {"choices": [{"message": {"content": self._content}}]}
+
+    def fake_post(url, headers, json, timeout):
+        calls.append(url)
+        if "generativelanguage" in url:
+            return Resp(None)  # Gemini server busy
+        return Resp("Poe answered instead?")
+
+    monkeypatch.setattr("app.services.model_adapter.httpx.post", fake_post)
+    settings = Settings(gemini_api_key="g-key", poe_api_key="p-key", poe_model="GPT-4o-Mini")
+
+    text = generate_tutor_turn(settings, "Title", "Scenario", "my claim", _MOVE)
+
+    assert text == "Poe answered instead?"            # fell back to Poe
+    assert "generativelanguage" in calls[0]           # Gemini tried FIRST
+    assert any("api.poe.com" in u for u in calls)     # Poe used as alternate
+
+
+def test_gemini_is_used_and_poe_not_called_when_gemini_works(monkeypatch):
+    calls = []
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Gemini question?"}}]}
+
+    def fake_post(url, headers, json, timeout):
+        calls.append(url)
+        return Resp()
+
+    monkeypatch.setattr("app.services.model_adapter.httpx.post", fake_post)
+    settings = Settings(gemini_api_key="g-key", gemini_model="gemini-2.5-flash", poe_api_key="p-key")
+
+    text = generate_tutor_turn(settings, "Title", "Scenario", "my claim", _MOVE)
+
+    assert text == "Gemini question?"
+    assert "generativelanguage" in calls[0]
+    assert all("api.poe.com" not in u for u in calls)  # Poe never reached
+
+
+def test_health_reports_gemini_mode_when_gemini_key_is_configured(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        gemini_api_key="g-key",
+        gemini_model="gemini-2.5-flash",
+        poe_api_key="p-key",
+    )
+    payload = TestClient(create_app(settings)).get("/health").json()
+    assert payload["model_mode"] == "gemini"
+    assert payload["model_name"] == "gemini-2.5-flash"
+
+
 def test_crossover_condition_routing():
     assert condition_for("A", 1) == "thinkmate"
     assert condition_for("A", 2) == "worksheet"

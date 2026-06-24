@@ -58,14 +58,22 @@ does **not** need cross-origin CORS in production.
 
 ## 3. The LLM layer (the model behind it)
 
+Provider chain, tried in order until one returns content:
+**Gemini → Poe → Hugging Face → demo.**
+
 | Aspect | Detail |
 |---|---|
-| Provider | **Poe** (OpenAI-compatible `chat/completions` API) |
-| Model in production | **`GLM-5`** (env `POE_MODEL=GLM-5`) |
-| Base URL | `https://api.poe.com/v1` (env `POE_BASE_URL`) |
-| Auth | `POE_API_KEY` (Railway secret — never commit it) |
-| Fallback provider | Hugging Face Inference (`HF_API_TOKEN`, `HF_MODEL=google/gemma-2-2b-it`) |
+| Primary provider | **Google Gemini** (free tier), via its OpenAI-compatible endpoint |
+| Gemini model / base | `GEMINI_MODEL=gemini-2.5-flash`, `GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`, auth `GEMINI_API_KEY` |
+| Alternate provider | **Poe** — used automatically when Gemini is busy/unavailable, or alone if no Gemini key |
+| Poe model / base | `POE_MODEL=GLM-5`, `POE_BASE_URL=https://api.poe.com/v1`, auth `POE_API_KEY` |
+| Tertiary fallback | Hugging Face Inference (`HF_API_TOKEN`, `HF_MODEL=google/gemma-2-2b-it`) |
 | Final fallback | **Demo mode** (canned Socratic questions) when no key is set — used by all tests |
+
+Both Gemini and Poe are OpenAI-compatible, so they share one helper
+(`_openai_chat`); `_chat` iterates the providers (`_chat_providers` defines the
+order). Get a free Gemini key at <https://aistudio.google.com/apikey> and set
+`GEMINI_API_KEY` as a Railway secret. Until that key is set, the app uses Poe.
 
 Model history (why GLM-5): `Gemma-4-31B` returned empty content; `Gemma-3-27B`
 worked then began timing out; **`GLM-5` was verified reliable (3/3 live calls)**
