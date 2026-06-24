@@ -86,6 +86,9 @@ class Turn(Base):
     move_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     paul_elder_target: Mapped[str | None] = mapped_column(String(64), nullable=True)
     bloom_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The reasoning-state assessment that selected this tutor move (research data;
+    # tutor-side only — never enters the blinded export).
+    reasoning_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     safeguard_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
