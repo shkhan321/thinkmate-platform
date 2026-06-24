@@ -118,6 +118,7 @@ def build_json_export(db: Session, blinded: bool) -> dict:
             "move_type": turn.move_type,
             "paul_elder_target": turn.paul_elder_target,
             "bloom_level": turn.bloom_level,
+            "reasoning_state": turn.reasoning_state,
             "safeguard_flag": turn.safeguard_flag,
         }
         for turn in db.scalars(select(Turn).order_by(Turn.session_id, Turn.turn_number)).all()

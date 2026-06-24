@@ -94,6 +94,9 @@ def ensure_schema_migrations(engine) -> None:
         "sessions": {
             "final_answer": "TEXT",
         },
+        "turns": {
+            "reasoning_state": "JSON",
+        },
     }
     inspector = inspect(engine)
     with engine.begin() as connection:

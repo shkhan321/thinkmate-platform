@@ -32,9 +32,12 @@ SOCRATIC_MOVES = [
 ]
 
 
-def move_for_tutor_turn(tutor_turn_count: int) -> dict:
-    index = min(tutor_turn_count, len(SOCRATIC_MOVES) - 1)
-    return SOCRATIC_MOVES[index]
+_MOVES_BY_TYPE = {move["move_type"]: move for move in SOCRATIC_MOVES}
+
+
+def move_by_type(move_type: str) -> dict:
+    """The Socratic move with this move_type (falls back to the first move)."""
+    return _MOVES_BY_TYPE.get(move_type, SOCRATIC_MOVES[0])
 
 
 # Explicit "give me the answer / I give up" appeals. These signal low effort

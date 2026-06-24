@@ -8,8 +8,9 @@ from app.database import get_app_settings, get_db
 from app.models import PilotSession, Student, Task, Turn
 from app.schemas import DialogueTurnRequest, DialogueTurnResponse, HintRequest, HintResponse
 from app.services.model_adapter import generate_hint, generate_tutor_turn
+from app.services.reasoning_state import assess_reasoning_state, select_move
 from app.services.safeguard import apply_safeguard
-from app.services.socratic import is_low_effort, move_for_tutor_turn
+from app.services.socratic import is_low_effort
 
 router = APIRouter(prefix="/api/dialogue", tags=["dialogue"])
 
@@ -59,22 +60,34 @@ def dialogue_turn(
     db.add(student_turn)
     db.flush()
 
-    # Progress through the reasoning steps by how many DISTINCT moves have been
-    # used so far (not raw turn count), so a repeated/stuck turn does not skip a
-    # step. If the student is stuck, stay on the current step and ask an easier
-    # question instead of advancing.
-    steps_done = len({turn.move_type for turn in prior_turns if turn.role == "tutor" and turn.move_type})
+    # Reasoning-state engine: assess where the student's reasoning is weakest and
+    # ask about THAT dimension, instead of walking a fixed move order. If they are
+    # stuck, stay on the current point with an easier question. The assessment is
+    # stored on the tutor turn as a per-turn reasoning trajectory for the research.
+    project_title = (student.project_title or "") if student else ""
+    project_goal = (student.project_goal or "") if student else ""
+    moves_used = [turn.move_type for turn in prior_turns if turn.role == "tutor" and turn.move_type]
     stuck = is_low_effort(payload.content)
-    move_index = max(0, steps_done - 1) if (stuck and steps_done > 0) else steps_done
-    move = move_for_tutor_turn(move_index)
+    # On a stuck turn we keep the previous move regardless of the assessment, so
+    # skip the (paid) model call and store the cheap heuristic state instead.
+    state = assess_reasoning_state(
+        settings,
+        project_title=project_title,
+        project_goal=project_goal,
+        history=history,
+        student_content=payload.content,
+        moves_used=moves_used,
+        use_model=not (stuck and bool(moves_used)),
+    )
+    move = select_move(state, moves_used, stuck)
     raw_content = generate_tutor_turn(
         settings,
         task.title,
         task.scenario,
         payload.content,
         move,
-        project_title=(student.project_title or "") if student else "",
-        project_goal=(student.project_goal or "") if student else "",
+        project_title=project_title,
+        project_goal=project_goal,
         history=history,
         stuck=stuck,
     )
@@ -87,6 +100,7 @@ def dialogue_turn(
         move_type=move["move_type"],
         paul_elder_target=move["paul_elder_target"],
         bloom_level=move["bloom_level"],
+        reasoning_state=state,
         safeguard_flag=safeguarded.flagged,
     )
     db.add(tutor_turn)

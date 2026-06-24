@@ -797,6 +797,242 @@ def test_stuck_reply_stays_on_same_reasoning_step(tmp_path):
     assert nxt.json()["tutor_turn"]["move_type"] == "evidence_probe"
 
 
+def test_reasoning_policy_targets_weakest_then_falls_back_to_sequence():
+    from app.services.reasoning_state import assess_reasoning_state, select_move
+
+    # Model assessment: the claim is already clear but evidence is missing, so the
+    # tutor should jump to the evidence move rather than re-asking to clarify.
+    state = {
+        "dimensions": {
+            "claim": "clear",
+            "evidence": "missing",
+            "assumptions": "hidden",
+            "counterview": "ignored",
+            "validation": "absent",
+        }
+    }
+    assert select_move(state, ["clarification"], stuck=False)["move_type"] == "evidence_probe"
+    # A stuck reply stays on the most recent move instead of advancing.
+    assert select_move(state, ["evidence_probe"], stuck=True)["move_type"] == "evidence_probe"
+
+    # With no model, the heuristic reproduces the original ordered walk.
+    offline = Settings(poe_api_key="")
+    s0 = assess_reasoning_state(offline, "P", "G", "", "hello", moves_used=[])
+    assert s0["source"] == "heuristic"
+    assert select_move(s0, [], stuck=False)["move_type"] == "clarification"
+    s1 = assess_reasoning_state(offline, "P", "G", "", "hello", moves_used=["clarification"])
+    assert select_move(s1, ["clarification"], stuck=False)["move_type"] == "evidence_probe"
+
+
+def test_reasoning_assessment_drives_the_move_and_is_stored(tmp_path, monkeypatch):
+    # The model rates the claim clear but evidence missing.
+    assessment = (
+        '{"claim":"clear","evidence":"missing","assumptions":"hidden",'
+        '"counterview":"ignored","validation":"absent"}'
+    )
+
+    class FakeResp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": assessment}}]}
+
+    monkeypatch.setattr("app.services.model_adapter.httpx.post", lambda *a, **k: FakeResp())
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        poe_api_key="test-poe-key",
+        poe_model="GPT-4o-Mini",
+        consent_version="test-consent-v1",
+    )
+    client = TestClient(create_app(settings))
+    student = client.post("/api/auth/start", json={"name": "Reema", "course": "engineering"}).json()
+    sid = student["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+
+    turn = client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "My claim is clearly stated."})
+    assert turn.status_code == 200
+    # Adaptive: claim is strong, so the tutor goes straight to evidence (not clarify).
+    assert turn.json()["tutor_turn"]["move_type"] == "evidence_probe"
+
+    full = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "false"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    tutor_turns = [t for t in full["turns"] if t["role"] == "tutor"]
+    assert tutor_turns and tutor_turns[0]["reasoning_state"]["dimensions"]["evidence"] == "missing"
+
+    # The assessment is research metadata and must NOT enter the blinded export.
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    assert "reasoning_state" not in json.dumps(blinded)
+
+
+def test_reasoning_policy_always_moves_forward_even_if_a_dimension_stays_weak():
+    from app.services.reasoning_state import select_move
+
+    # A dimension that the model keeps rating sub-strong must NOT trap the tutor:
+    # once its move was asked, the tutor advances to the next weak dimension.
+    state = {"dimensions": {
+        "claim": "vague", "evidence": "weak", "assumptions": "hidden",
+        "counterview": "ignored", "validation": "absent",
+    }}
+    assert select_move(state, [], stuck=False)["move_type"] == "clarification"
+    assert select_move(state, ["clarification"], stuck=False)["move_type"] == "evidence_probe"
+    assert select_move(state, ["clarification", "evidence_probe"], stuck=False)["move_type"] == "assumption_probe"
+    # Once every move has been asked, it closes on reflection (never re-loops).
+    everything = ["clarification", "evidence_probe", "assumption_probe", "counterview", "reflection"]
+    assert select_move(state, everything, stuck=False)["move_type"] == "reflection"
+
+
+def test_reasoning_policy_all_strong_and_edge_cases():
+    from app.services.reasoning_state import assess_reasoning_state, select_move
+
+    all_strong = {"dimensions": {
+        "claim": "clear", "evidence": "strong", "assumptions": "surfaced",
+        "counterview": "engaged", "validation": "present",
+    }}
+    assert select_move(all_strong, ["clarification"], stuck=False)["move_type"] == "reflection"
+    # Stuck with no prior moves must not index off the end — returns the weakest.
+    s = assess_reasoning_state(Settings(poe_api_key=""), "P", "G", "", "hi", moves_used=[])
+    assert select_move(s, [], stuck=True)["move_type"] == "clarification"
+    # Heuristic terminal state: every move used -> reflection.
+    done = assess_reasoning_state(
+        Settings(poe_api_key=""), "P", "G", "", "hi",
+        moves_used=["clarification", "evidence_probe", "assumption_probe", "counterview", "reflection"],
+    )
+    assert select_move(done, ["clarification", "evidence_probe", "assumption_probe", "counterview", "reflection"], stuck=False)["move_type"] == "reflection"
+
+
+def test_normalize_coerces_unknown_and_missing_to_weakest():
+    from app.services.reasoning_state import _normalize
+
+    state = _normalize({"claim": "CLEAR", "counterview": "banana"})
+    dims = state["dimensions"]
+    assert dims["claim"] == "clear"          # case-insensitive recognised value
+    assert dims["counterview"] == "ignored"  # unknown -> weakest
+    assert dims["evidence"] == "missing"     # missing -> weakest
+    assert state["source"] == "model"
+    # Nested {"dimensions": {...}} shape is also accepted.
+    nested = _normalize({"dimensions": {"evidence": "strong"}})
+    assert nested["dimensions"]["evidence"] == "strong"
+
+
+def test_parse_assessment_json_handles_bad_and_fenced_replies():
+    from app.services.model_adapter import _parse_assessment_json
+
+    assert _parse_assessment_json("the student seems to be doing fine") is None
+    assert _parse_assessment_json('{"claim": "clear",') is None  # truncated
+    fenced = _parse_assessment_json('```json\n{"claim": "clear"}\n```')
+    assert fenced == {"claim": "clear"}
+    # A single-object array is leniently unwrapped to the object.
+    assert _parse_assessment_json('[{"claim": "vague"}]')["claim"] == "vague"
+
+
+def test_worksheet_session_never_triggers_a_model_call(tmp_path, monkeypatch):
+    calls = {"n": 0}
+
+    def counting_post(*args, **kwargs):
+        calls["n"] += 1
+        raise AssertionError("the control condition must never call the model")
+
+    monkeypatch.setattr("app.services.model_adapter.httpx.post", counting_post)
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        poe_api_key="test-poe-key",
+        consent_version="test-consent-v1",
+    )
+    client = TestClient(create_app(settings))
+    sid = client.post("/api/auth/start", json={"name": "Wadima", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+
+    client.post(
+        "/api/worksheet/response",
+        json={"session_id": session_id, "step_key": "claim", "prompt": "P", "response": "My answer."},
+    )
+    # A dialogue turn on a worksheet session is rejected before any assessment.
+    assert client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "hello"}).status_code == 400
+    assert calls["n"] == 0
+
+
+def test_live_tutor_advances_across_turns_when_a_dimension_stays_weak(tmp_path, monkeypatch):
+    # The assessor keeps the claim sub-strong every turn; the tutor must still
+    # advance instead of repeating 'clarification' forever.
+    assessment = (
+        '{"claim":"vague","evidence":"weak","assumptions":"hidden",'
+        '"counterview":"ignored","validation":"absent"}'
+    )
+
+    class FakeResp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": assessment}}]}
+
+    monkeypatch.setattr("app.services.model_adapter.httpx.post", lambda *a, **k: FakeResp())
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        poe_api_key="test-poe-key",
+        poe_model="GPT-4o-Mini",
+        consent_version="test-consent-v1",
+    )
+    client = TestClient(create_app(settings))
+    sid = client.post("/api/auth/start", json={"name": "Salma", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+
+    moves = []
+    for _ in range(3):
+        r = client.post(
+            "/api/dialogue/turn",
+            json={"session_id": session_id, "content": "I think my chosen design is the right one for these reasons."},
+        )
+        moves.append(r.json()["tutor_turn"]["move_type"])
+    # Distinct, advancing moves — no infinite loop on 'clarification'.
+    assert moves == ["clarification", "evidence_probe", "assumption_probe"]
+
+
+def test_migration_adds_reasoning_state_column(tmp_path):
+    from sqlalchemy import create_engine, inspect, text
+    from app.main import ensure_schema_migrations
+
+    db_path = tmp_path / "legacy.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE TABLE turns (id TEXT PRIMARY KEY, session_id TEXT, turn_number INTEGER, "
+                "role TEXT, content TEXT)"
+            ))
+        ensure_schema_migrations(engine)
+        cols = {c["name"] for c in inspect(engine).get_columns("turns")}
+    finally:
+        engine.dispose()
+    assert "reasoning_state" in cols
+
+
 def test_safeguard_replaces_direct_answer():
     result = apply_safeguard("The answer is to choose the cheapest design.")
 
