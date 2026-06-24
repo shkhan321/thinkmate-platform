@@ -160,7 +160,7 @@ export function ThinkMateChat({
             </span>
             <div className="leading-tight">
               <p className="font-bold text-slate-900">ThinkMate</p>
-              <p className="text-xs text-slate-500">Asks questions — never gives the answer</p>
+              <p className="text-xs text-slate-500">Encourages and guides — never just hands you the answer</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

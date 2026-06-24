@@ -364,6 +364,22 @@ def test_tutor_prompt_is_anchored_to_student_project():
     assert "choose a battery layout" in prompt
 
 
+def test_tutor_prompt_asks_for_warm_encouragement():
+    from app.services.model_adapter import SYSTEM_PROMPT, _build_prompt
+
+    prompt = _build_prompt(
+        task_title="Stress-test your project",
+        scenario="Look for weak spots.",
+        student_content="I think nylon is strong enough.",
+        move={"move_type": "evidence_probe", "paul_elder_target": "accuracy", "prompt": "What evidence?"},
+    )
+    # The tutor is now told to open with encouragement / acknowledgement before the
+    # question, so students know they are on the right track.
+    assert "encourag" in prompt.lower() and "acknowledg" in prompt.lower()
+    assert "encourag" in SYSTEM_PROMPT.lower()
+    assert "right track" in SYSTEM_PROMPT.lower()
+
+
 def test_tutor_prompt_includes_conversation_history():
     from app.services.model_adapter import _build_prompt
 
@@ -1110,7 +1126,7 @@ def test_safeguard_replaces_direct_answer():
     result = apply_safeguard("The answer is to choose the cheapest design.")
 
     assert result.flagged is True
-    assert "cannot give the answer directly" in result.content.lower()
+    assert "right track" in result.content.lower()  # warm fallback, still no answer
     assert "?" in result.content
 
 
@@ -1165,15 +1181,16 @@ def test_effective_cors_falls_back_to_same_origin_in_production():
     assert effective_cors_origins(dev) == ["*"]
 
 
-def test_safeguard_flags_recommendations_but_allows_questions():
-    # New recommendation phrasings are caught.
-    assert apply_safeguard("You could use carbon fibre for the wing.").flagged is True
-    assert apply_safeguard("I would go with the lithium cells.").flagged is True
-    # A legitimate Socratic question is NOT flagged (the over-broad
-    # "the answer to" pattern was removed).
-    result = apply_safeguard("What is the answer to your first assumption?")
-    assert result.flagged is False
-    assert result.content == "What is the answer to your first assumption?"
+def test_safeguard_allows_encouragement_but_blocks_a_flat_answer():
+    # ThinkMate may now encourage and gently steer — directional nudges are allowed.
+    assert apply_safeguard(
+        "Nice — you're on the right track. You could look at fatigue data next; what would you check?"
+    ).flagged is False
+    assert apply_safeguard("Good thinking. I'd consider the load case — what's the worst case here?").flagged is False
+    # But a flat answer-dump is still blocked.
+    assert apply_safeguard("The answer is carbon fibre.").flagged is True
+    # A plain Socratic question is fine.
+    assert apply_safeguard("What is your strongest reason for that?").flagged is False
 
 
 def test_student_transcript_excludes_tutor_turns():

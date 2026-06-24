@@ -9,6 +9,27 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
+## v0.13.0 — Encouraging, human tutor tone *(2026-06-24, built — not yet deployed)*
+
+A deliberate pedagogical decision by the PI: ThinkMate should keep students
+moving in the **right direction** and never leave them feeling lost — so the
+tutor now **encourages and gently steers**, like a warm human mentor, instead of
+only asking neutral questions.
+
+- The tutor opens each reply with a short, genuine acknowledgement of what is
+  good in the student's answer ("Nice, that's a clear claim", "You're on the
+  right track"), tells them when their reasoning is heading the right way, then
+  asks one question that pushes it further (`SYSTEM_PROMPT` / `_build_prompt`).
+- Stuck students get warm reassurance plus an easier first step.
+- The answer-leak **safeguard is relaxed to match**: it now blocks only a flat
+  answer-dump ("the answer is …"); directional encouragement ("you could look
+  at…", "I'd consider…") is allowed. A little answer-direction is acceptable by
+  design — the goal is guidance, not withholding. The blatant-answer block and a
+  length cap remain.
+- The non-AI worksheet control is unaffected, and the blinded export still holds
+  only the student's own words, so the study's integrity layer is preserved.
+- Backend 65 tests pass; the warm tone is verified live against GLM-5 after deploy.
+
 ## v0.12.0 — Reasoning tree *(2026-06-24, built — not yet deployed)*
 
 The student now **sees their reasoning as a tree built from their own short
