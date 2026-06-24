@@ -1,5 +1,5 @@
 export type Condition = "thinkmate" | "worksheet";
-export type ModelMode = "demo" | "huggingface" | "poe";
+export type ModelMode = "demo" | "huggingface" | "poe" | "gemini";
 
 export interface Health {
   status: string;

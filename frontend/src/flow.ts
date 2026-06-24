@@ -114,6 +114,7 @@ export function canSubmitWorksheet(stepKeys: string[], responses: Record<string,
 }
 
 export function modelModeLabel(mode: ModelMode): string {
+  if (mode === "gemini") return "AI tutor online";
   if (mode === "poe") return "AI tutor online";
   if (mode === "huggingface") return "AI tutor online";
   return "Demo mode";

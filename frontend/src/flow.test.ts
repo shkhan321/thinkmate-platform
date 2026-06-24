@@ -23,6 +23,7 @@ describe("pilot flow helpers", () => {
   });
 
   it("shows a friendly model mode label", () => {
+    expect(modelModeLabel("gemini")).toContain("online");
     expect(modelModeLabel("poe")).toContain("online");
     expect(modelModeLabel("demo")).toContain("Demo");
   });
