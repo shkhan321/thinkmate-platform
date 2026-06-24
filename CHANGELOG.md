@@ -9,7 +9,23 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.10.0 — Reasoning-state engine *(2026-06-24, built — not yet deployed)*
+## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, built — needs GEMINI_API_KEY)*
+
+Adds **Google Gemini (free tier) as the primary model**, with **Poe as the
+automatic alternate** when Gemini is busy or unavailable.
+
+- Both providers are OpenAI-compatible, so they share one chat helper
+  (`_openai_chat`); `_chat` tries each provider in order (Gemini → Poe) and
+  returns the first non-empty reply, falling through to Hugging Face / demo only
+  if neither is configured.
+- New env vars: `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-2.5-flash`),
+  `GEMINI_BASE_URL`. `/health` reports `model_mode=gemini` when the key is set.
+- **Backward-compatible:** with no Gemini key the app behaves exactly as before
+  (Poe only), so deploying this is safe before the key is added.
+- To activate: get a free key at https://aistudio.google.com/apikey and set
+  `GEMINI_API_KEY` in Railway (and locally in `.env`).
+
+## v0.10.0 — Reasoning-state engine *(2026-06-24, deployed to production)*
 
 The tutor stops walking a fixed move order and starts **modelling the student's
 reasoning**. Each turn, a separate model call assesses five dimensions —

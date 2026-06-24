@@ -90,6 +90,8 @@ def _extract_chat_completion_text(payload) -> str:
 
 
 def active_model_mode(settings: Settings) -> str:
+    if settings.gemini_api_key:
+        return "gemini"
     if settings.poe_api_key:
         return "poe"
     if settings.hf_api_token:
@@ -98,9 +100,24 @@ def active_model_mode(settings: Settings) -> str:
 
 
 def active_model_name(settings: Settings) -> str:
-    if active_model_mode(settings) == "poe":
+    mode = active_model_mode(settings)
+    if mode == "gemini":
+        return settings.gemini_model
+    if mode == "poe":
         return settings.poe_model
     return settings.hf_model
+
+
+def _chat_providers(settings: Settings) -> list[tuple[str, str, str, str]]:
+    """OpenAI-compatible chat providers to try, in order: Gemini first (primary),
+    then Poe (alternate, used when Gemini is busy/unavailable). Each entry is
+    (base_url, api_key, model, name). Empty when neither key is configured."""
+    providers = []
+    if settings.gemini_api_key:
+        providers.append((settings.gemini_base_url, settings.gemini_api_key, settings.gemini_model, "gemini"))
+    if settings.poe_api_key:
+        providers.append((settings.poe_base_url, settings.poe_api_key, settings.poe_model, "poe"))
+    return providers
 
 
 def generate_tutor_turn(
@@ -116,8 +133,12 @@ def generate_tutor_turn(
 ) -> str:
     prompt = _build_prompt(task_title, scenario, student_content, move, project_title, project_goal, history, stuck)
 
-    if settings.poe_api_key:
-        return _generate_poe_turn(settings, prompt, move)
+    if _chat_providers(settings):
+        text = _chat(settings, SYSTEM_PROMPT, prompt, max_tokens=80, temperature=0.3)
+        if text:
+            return text
+        logger.warning("Tutor turn fell back: all chat providers (Gemini/Poe) returned nothing.")
+        return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
 
     if not settings.hf_api_token:
         anchor = project_title.strip() or task_title
@@ -146,8 +167,10 @@ def generate_tutor_turn(
     return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
 
 
-def _poe_chat(
-    settings: Settings,
+def _openai_chat(
+    base_url: str,
+    api_key: str,
+    model: str,
     system: str,
     user: str,
     max_tokens: int,
@@ -155,13 +178,12 @@ def _poe_chat(
     attempts: int = 2,
     timeout: float = 30,
 ) -> str:
-    """Call Poe's OpenAI-compatible chat endpoint with a small retry, since Poe
-    models occasionally time out or return transient 5xx. Returns the message
-    text, or '' if every attempt fails or comes back empty."""
-    url = f"{settings.poe_base_url.rstrip('/')}/chat/completions"
-    headers = {"Authorization": f"Bearer {settings.poe_api_key}"}
+    """Call one OpenAI-compatible chat endpoint (Gemini or Poe) with a small retry.
+    Returns the message text, or '' if every attempt fails or comes back empty."""
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}"}
     payload = {
-        "model": settings.poe_model,
+        "model": model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -176,27 +198,33 @@ def _poe_chat(
             text = _extract_chat_completion_text(response.json()).strip()
             if text:
                 return text
-            logger.warning(
-                "Poe model %s returned empty content (attempt %s/%s).",
-                settings.poe_model, attempt, attempts,
-            )
+            logger.warning("Model %s returned empty content (attempt %s/%s).", model, attempt, attempts)
         except (httpx.HTTPError, ValueError) as error:
             # ValueError covers a 200 OK whose body is not JSON (an upstream HTML
             # error/maintenance page), which response.json() raises as
             # JSONDecodeError — previously uncaught, 500-ing the student.
-            logger.warning(
-                "Poe model %s call failed (attempt %s/%s): %s",
-                settings.poe_model, attempt, attempts, error,
-            )
+            logger.warning("Model %s call failed (attempt %s/%s): %s", model, attempt, attempts, error)
     return ""
 
 
-def _generate_poe_turn(settings: Settings, prompt: str, move: dict) -> str:
-    text = _poe_chat(settings, SYSTEM_PROMPT, prompt, max_tokens=80, temperature=0.3)
-    if text:
-        return text
-    logger.warning("Poe tutor turn fell back for model %s. Check POE_MODEL is valid and active.", settings.poe_model)
-    return f"{move['prompt']} What part of the scenario makes that reasoning stronger or weaker?"
+def _chat(
+    settings: Settings,
+    system: str,
+    user: str,
+    max_tokens: int,
+    temperature: float,
+    attempts: int = 2,
+    timeout: float = 30,
+) -> str:
+    """Try each configured provider in order — Gemini first, then Poe as the
+    alternate when Gemini is busy/unavailable — and return the first non-empty
+    reply, or '' if all providers fail."""
+    for base_url, api_key, model, name in _chat_providers(settings):
+        text = _openai_chat(base_url, api_key, model, system, user, max_tokens, temperature, attempts, timeout)
+        if text:
+            return text
+        logger.warning("Provider '%s' returned no usable content; trying the next provider if any.", name)
+    return ""
 
 
 HINT_SYSTEM_PROMPT = (
@@ -231,11 +259,11 @@ def generate_hint(
         "Write one short example answer the student could adapt:"
     )
 
-    if settings.poe_api_key:
-        text = _poe_chat(settings, HINT_SYSTEM_PROMPT, user_prompt, max_tokens=90, temperature=0.4)
+    if _chat_providers(settings):
+        text = _chat(settings, HINT_SYSTEM_PROMPT, user_prompt, max_tokens=90, temperature=0.4)
         if text:
             return text
-        logger.warning("Poe hint fell back for model %s.", settings.poe_model)
+        logger.warning("Hint fell back: chat providers returned nothing.")
 
     return HINT_FALLBACK
 
@@ -266,11 +294,11 @@ def generate_session_summary(
         f"The student's own messages (each line is what the student wrote):\n{transcript}\n\n"
         "Write the student's thinking brief now:"
     )
-    if settings.poe_api_key and transcript.strip():
-        text = _poe_chat(settings, SUMMARY_SYSTEM_PROMPT, user_prompt, max_tokens=180, temperature=0.3)
+    if _chat_providers(settings) and transcript.strip():
+        text = _chat(settings, SUMMARY_SYSTEM_PROMPT, user_prompt, max_tokens=180, temperature=0.3)
         if text:
             return text
-        logger.warning("Poe summary fell back for model %s.", settings.poe_model)
+        logger.warning("Summary fell back: chat providers returned nothing.")
     return (
         "We could not build your brief automatically this time. "
         "Look back at your messages above and note your main claim, your best reason, "
@@ -306,7 +334,7 @@ def generate_reasoning_assessment(
     is not usable JSON, so the caller can fall back to a deterministic heuristic.
     A failed assessment is cheap (the caller has a heuristic fallback), so this
     uses a single short-timeout attempt rather than retrying."""
-    if not settings.poe_api_key:
+    if not _chat_providers(settings):
         return None
     # The student's text is wrapped in an explicit delimiter and labelled as data,
     # so a message that tries to dictate the ratings is treated as content, not
@@ -320,7 +348,7 @@ def generate_reasoning_assessment(
         f"<<<STUDENT_MESSAGE\n{student_content}\nSTUDENT_MESSAGE\n\n"
         "Return the JSON assessment now:"
     )
-    text = _poe_chat(
+    text = _chat(
         settings, ASSESS_SYSTEM_PROMPT, user_prompt, max_tokens=120, temperature=0.0, attempts=1, timeout=15
     )
     if not text:

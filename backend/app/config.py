@@ -5,6 +5,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./thinkmate_dev.db"
+    # Primary model provider: Google Gemini (free tier via Google AI Studio),
+    # called through its OpenAI-compatible endpoint. Poe is the alternate used
+    # when Gemini is unavailable/busy. Leave gemini_api_key blank to use Poe only.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     hf_api_token: str = ""
     hf_model: str = "google/gemma-2-2b-it"
     poe_api_key: str = ""
