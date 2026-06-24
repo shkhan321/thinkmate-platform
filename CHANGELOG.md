@@ -9,7 +9,7 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, built — needs GEMINI_API_KEY)*
+## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, deployed to production)*
 
 Adds **Google Gemini (free tier) as the primary model**, with **Poe as the
 automatic alternate** when Gemini is busy or unavailable.
@@ -22,8 +22,8 @@ automatic alternate** when Gemini is busy or unavailable.
   `GEMINI_BASE_URL`. `/health` reports `model_mode=gemini` when the key is set.
 - **Backward-compatible:** with no Gemini key the app behaves exactly as before
   (Poe only), so deploying this is safe before the key is added.
-- To activate: get a free key at https://aistudio.google.com/apikey and set
-  `GEMINI_API_KEY` in Railway (and locally in `.env`).
+- Activated in Railway production with `GEMINI_API_KEY`; `/health` reports
+  `model_mode=gemini` and `model_name=gemini-2.5-flash`.
 
 ## v0.10.0 — Reasoning-state engine *(2026-06-24, deployed to production)*
 
