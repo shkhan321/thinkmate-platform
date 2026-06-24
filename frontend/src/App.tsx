@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import {
   COURSES,
@@ -130,7 +130,7 @@ function TopBar({
 function SiteFooter({ view, setView }: { view: View; setView: (view: View) => void }) {
   return (
     <footer className="border-t border-slate-200 px-4 py-6 sm:px-6">
-      <div className="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-400 sm:flex-row sm:text-left">
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
         <p>ThinkMate · UAE University Teaching &amp; Learning pilot</p>
         {view === "admin" && (
           <button
@@ -330,14 +330,19 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   }
 
   async function completeAndReturn() {
-    if (!session) return;
+    if (!session || pending) return;
     setError("");
+    setPending(true);
     try {
       await api.completeSession(session.id);
-      if (student) await loadTasks(student.student_id);
       setStage("complete");
+      // A task-list refresh failure must NOT block (or undo) a completion that
+      // already succeeded, nor leave the student able to re-submit.
+      if (student) await loadTasks(student.student_id).catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your work. Please try again.");
+    } finally {
+      setPending(false);
     }
   }
 
@@ -348,8 +353,8 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     try {
       await api.saveAnswer(session.id, answer);
       await api.completeSession(session.id);
-      if (student) await loadTasks(student.student_id);
       setStage("complete");
+      if (student) await loadTasks(student.student_id).catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your answer. Please try again.");
     } finally {
@@ -529,11 +534,24 @@ function SignIn({
 }) {
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
+  const courseRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const ready = name.trim().length > 0 && course.length > 0;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (ready) onStart(name, course);
+  }
+
+  // Arrow keys move selection within the course radiogroup (WAI-ARIA radio
+  // pattern), so the picker is operable without a mouse.
+  function handleCourseKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+    const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
+    if (!forward && !backward) return;
+    event.preventDefault();
+    const next = (index + (forward ? 1 : -1) + COURSES.length) % COURSES.length;
+    setCourse(COURSES[next].value);
+    courseRefs.current[next]?.focus();
   }
 
   return (
@@ -604,16 +622,25 @@ function SignIn({
             maxLength={80}
           />
 
-          <p className="mt-5 text-sm font-semibold text-slate-700">Your course</p>
-          <div className="mt-1.5 grid gap-2.5 sm:grid-cols-2">
-            {COURSES.map((item) => {
+          <p id="course-label" className="mt-5 text-sm font-semibold text-slate-700">Your course</p>
+          <div role="radiogroup" aria-labelledby="course-label" className="mt-1.5 grid gap-2.5 sm:grid-cols-2">
+            {COURSES.map((item, index) => {
               const selected = course === item.value;
+              // Roving tabindex: only the selected option (or the first, when
+              // none is selected yet) is in the tab order; arrows move the rest.
+              const tabIndex = course ? (selected ? 0 : -1) : index === 0 ? 0 : -1;
               return (
                 <button
                   type="button"
                   key={item.value}
+                  ref={(element) => {
+                    courseRefs.current[index] = element;
+                  }}
                   onClick={() => setCourse(item.value)}
-                  aria-pressed={selected}
+                  onKeyDown={(event) => handleCourseKey(event, index)}
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={tabIndex}
                   className={`rounded-2xl border p-4 text-left transition ${
                     selected
                       ? "border-brand-500 bg-brand-50 ring-2 ring-brand-200"
@@ -630,7 +657,7 @@ function SignIn({
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-500">
             ThinkMate is currently running for these two pilot courses. More may be added later.
           </p>
 
@@ -715,7 +742,7 @@ function ConsentScreen({
               <dd className="font-bold text-slate-900">{student.access_code}</dd>
             </div>
           </dl>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-500">
             Your work saves automatically. To continue later — even on another device — just sign in with the same
             name and course.
           </p>
@@ -781,7 +808,7 @@ function TaskList({
           </p>
         </div>
         {student && (
-          <span className="hidden shrink-0 text-xs font-semibold text-slate-400 sm:block">
+          <span className="hidden shrink-0 text-xs font-semibold text-slate-500 sm:block">
             {courseCode(student.course)}
           </span>
         )}
@@ -826,7 +853,7 @@ function TaskList({
                 )}
               </div>
 
-              <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">
+              <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
                 Activity {task.task_number} · ≈ 10–15 min
               </p>
               <h3 className="mt-0.5 text-lg font-extrabold text-slate-900">{task.title}</h3>
@@ -971,6 +998,7 @@ function Feedback({ studentId }: { studentId: string }) {
       </div>
       <textarea
         className="tm-input mt-3 min-h-[3.5rem] resize-y"
+        aria-label="Your feedback (optional)"
         value={comment}
         onChange={(event) => setComment(event.target.value)}
         placeholder="Anything you'd like to tell us? (optional)"

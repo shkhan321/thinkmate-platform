@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     seed_demo_students: bool = True
     pilot_access_codes: str = ""
     cors_origins: str = "*"
+    admin_rate_limit_per_minute: int = 30
 
     model_config = SettingsConfigDict(
         env_file=".env",

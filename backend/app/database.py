@@ -1,12 +1,23 @@
 from collections.abc import Generator
 
 from fastapi import Request
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
     pass
+
+
+def _configure_sqlite(dbapi_connection, _connection_record) -> None:
+    """On SQLite, wait on a locked DB instead of immediately erroring, and use
+    WAL so a reader does not block a writer. This makes the concurrent writes a
+    pilot can produce (two students saving at once) resilient rather than raising
+    'database is locked'."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.close()
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -19,8 +30,12 @@ def normalize_database_url(database_url: str) -> str:
 
 def make_engine(database_url: str):
     url = normalize_database_url(database_url)
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    return create_engine(url, connect_args=connect_args, future=True)
+    is_sqlite = url.startswith("sqlite")
+    connect_args = {"check_same_thread": False} if is_sqlite else {}
+    engine = create_engine(url, connect_args=connect_args, future=True)
+    if is_sqlite:
+        event.listen(engine, "connect", _configure_sqlite)
+    return engine
 
 
 def make_session_factory(engine):

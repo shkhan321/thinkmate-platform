@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -11,7 +12,10 @@ from app.config import Settings, get_settings
 from app.database import Base, make_engine, make_session_factory
 from app.seed import parse_pilot_access_codes, seed_database
 from app.services.model_adapter import active_model_mode, active_model_name
+from app.services.ratelimit import SlidingWindowRateLimiter
 
+
+logger = logging.getLogger("thinkmate")
 
 DEFAULT_ADMIN_PASSWORDS = {"", "change-me", "change-this-before-deploying"}
 
@@ -23,6 +27,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = active_settings
     app.state.engine = make_engine(active_settings.database_url)
     app.state.SessionLocal = make_session_factory(app.state.engine)
+    app.state.admin_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=active_settings.admin_rate_limit_per_minute, window_seconds=60.0
+    )
 
     Base.metadata.create_all(app.state.engine)
     ensure_schema_migrations(app.state.engine)
@@ -33,7 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             include_demo_students=active_settings.seed_demo_students,
         )
 
-    origins = parse_cors_origins(active_settings.cors_origins)
+    origins = effective_cors_origins(active_settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -98,6 +105,27 @@ def ensure_schema_migrations(engine) -> None:
                 if name not in existing:
                     connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
+    # Unique indexes that protect study-data integrity: one canonical session per
+    # (student, task) and a unique turn ordering per session. Created here (works
+    # on SQLite and PostgreSQL) so existing databases gain them too. Each runs in
+    # its own transaction and is best-effort: if a deployed DB already holds
+    # duplicates from before this guard, we log instead of crashing startup.
+    unique_indexes = {
+        "uq_session_student_task": ("sessions", "student_id, task_id"),
+        "uq_turn_session_number": ("turns", "session_id, turn_number"),
+    }
+    for index_name, (table, cols) in unique_indexes.items():
+        if not inspector.has_table(table):
+            continue
+        try:
+            with engine.begin() as connection:
+                connection.execute(text(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table} ({cols})"))
+        except Exception as exc:  # pragma: no cover - only on pre-existing duplicate rows
+            logger.warning(
+                "Could not create unique index %s on %s(%s) — likely pre-existing duplicates: %s",
+                index_name, table, cols, exc,
+            )
+
 
 def validate_settings(settings: Settings) -> None:
     is_production = settings.app_env.lower() == "production"
@@ -105,6 +133,9 @@ def validate_settings(settings: Settings) -> None:
         raise RuntimeError("ADMIN_PASSWORD must be changed before production startup.")
     if is_production and settings.seed_demo_students:
         raise RuntimeError("SEED_DEMO_STUDENTS must be false in production (public demo accounts are unsafe).")
+    # Wildcard/empty CORS in production is NOT a hard error: the SPA is served
+    # from this same origin, so effective_cors_origins() safely falls back to
+    # same-origin only (and logs a warning) instead of crashing a live deploy.
 
 
 def parse_cors_origins(raw_origins: str) -> list[str]:
@@ -112,6 +143,24 @@ def parse_cors_origins(raw_origins: str) -> list[str]:
         return ["*"]
     origins = [origin.strip() for origin in raw_origins.replace("\n", ",").split(",")]
     return [origin for origin in origins if origin]
+
+
+def effective_cors_origins(settings: Settings) -> list[str]:
+    """The CORS allow-list actually applied. In production a wildcard or empty
+    value is downgraded to same-origin only (an empty list) — the frontend is
+    served from this origin, so it never needs a cross-origin grant, and we must
+    not expose a public wildcard. Non-production keeps the configured value for
+    local development convenience."""
+    origins = parse_cors_origins(settings.cors_origins)
+    is_production = settings.app_env.lower() == "production"
+    if is_production and (origins == ["*"] or not origins):
+        logger.warning(
+            "CORS_ORIGINS=%r in production; serving same-origin only. "
+            "Set CORS_ORIGINS to your app URL to allow specific cross-origin clients.",
+            settings.cors_origins,
+        )
+        return []
+    return origins
 
 
 def mount_frontend(app: FastAPI) -> None:

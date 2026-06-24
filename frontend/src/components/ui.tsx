@@ -76,8 +76,19 @@ export function PedagogyTags({
   const tone = (bloom && bloomStyles[bloom.toLowerCase()]) || "bg-slate-100 text-slate-600";
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      {bloom && <span className={`tm-chip ${tone}`}>{capitalize(bloom)}</span>}
-      {paulElder && <span className="tm-chip bg-slate-100 text-slate-600">{capitalize(paulElder)}</span>}
+      {bloom && (
+        <span className={`tm-chip ${tone}`} title={`Thinking skill (Bloom's taxonomy): ${capitalize(bloom)}`}>
+          {capitalize(bloom)}
+        </span>
+      )}
+      {paulElder && (
+        <span
+          className="tm-chip bg-slate-100 text-slate-600"
+          title={`Quality of reasoning (Paul-Elder standards): ${capitalize(paulElder)}`}
+        >
+          {capitalize(paulElder)}
+        </span>
+      )}
     </div>
   );
 }

@@ -35,3 +35,50 @@ SOCRATIC_MOVES = [
 def move_for_tutor_turn(tutor_turn_count: int) -> dict:
     index = min(tutor_turn_count, len(SOCRATIC_MOVES) - 1)
     return SOCRATIC_MOVES[index]
+
+
+# Explicit "give me the answer / I give up" appeals. These signal low effort
+# regardless of message length — a student writing a paragraph that ends in
+# "just tell me the answer" is still asking to be handed it.
+_GIVE_UP_PHRASES = (
+    "just tell me",
+    "tell me the answer",
+    "give me the answer",
+    "i give up",
+)
+
+# Generic "I'm stuck" signals. These only count as low effort when the WHOLE
+# message is short — otherwise a substantive answer that merely contains the
+# words (e.g. "this will help me decide between two materials") is wrongly
+# flagged as stuck, which would stall the tutor on the same reasoning step.
+_STUCK_PHRASES = (
+    "i don't know",
+    "i dont know",
+    "idk",
+    "dont know",
+    "do not know",
+    "not sure",
+    "no idea",
+    "no clue",
+    "help me",
+)
+_SHORT_FILLERS = {"yes", "no", "ok", "okay", "maybe", "hmm", "sure", "nope", "yeah", "idk", "?", "help"}
+
+# A "short" message for the purpose of the stuck-phrase check.
+_STUCK_MAX_WORDS = 6
+
+
+def is_low_effort(content: str) -> bool:
+    """True when the student's reply signals they are stuck or barely engaged."""
+    text = content.strip().lower()
+    if not text:
+        return True
+    if text in _SHORT_FILLERS:
+        return True
+    if any(phrase in text for phrase in _GIVE_UP_PHRASES):
+        return True
+    words = text.split()
+    if len(words) <= _STUCK_MAX_WORDS and any(phrase in text for phrase in _STUCK_PHRASES):
+        return True
+    # Very short and not a substantive answer (e.g. "no", "not really").
+    return len(words) <= 2 and len(text) <= 8

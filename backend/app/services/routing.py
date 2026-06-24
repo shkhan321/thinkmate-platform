@@ -38,10 +38,15 @@ def assign_balanced_sequence(db: Session, course: str) -> str:
 
 
 def generate_study_id(db: Session, course: str) -> str:
-    """Generate a unique, pseudonymous study ID such as ENG-7F3A2K."""
+    """Generate a unique, pseudonymous study ID such as ENG-7F3A2C8D1E.
+
+    The random part is 5 bytes (40 bits). The student record can be looked up by
+    this code via /api/auth/access-code with no login, so it must be infeasible
+    to guess a valid code by enumeration — 3 bytes (24 bits) was brute-forceable.
+    The code never encodes the crossover sequence."""
     prefix = COURSE_PREFIXES.get(course, course[:3].upper() or "STU")
     for _ in range(20):
-        candidate = f"{prefix}-{secrets.token_hex(3).upper()}"
+        candidate = f"{prefix}-{secrets.token_hex(5).upper()}"
         if db.scalar(select(Student).where(Student.access_code == candidate)) is None:
             return candidate
     raise RuntimeError("Could not generate a unique study ID.")

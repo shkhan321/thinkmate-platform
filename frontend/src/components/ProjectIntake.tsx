@@ -106,7 +106,7 @@ export function ProjectIntake({
             placeholder={examples.goal}
             maxLength={2000}
           />
-          <p className="mt-1.5 text-xs text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-500">
             One or two lines is plenty. You can be rough — ThinkMate will ask to sharpen it.
           </p>
         </div>

@@ -22,6 +22,19 @@ DIRECT_ANSWER_PATTERNS = (
     "in conclusion",
     "to summarize",
     "therefore the correct answer",
+    "you could use",
+    "you can use",
+    "you need to use",
+    "you must use",
+    "you ought to",
+    "i would use",
+    "i'd use",
+    "i would go with",
+    "i'd go with",
+    "go with the",
+    "my recommendation",
+    "what i would do",
+    "what i'd do",
 )
 
 # A single Socratic question should be short. Anything much longer is likely an

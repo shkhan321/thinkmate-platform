@@ -1,7 +1,7 @@
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -15,9 +15,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 def require_admin(
+    request: Request,
     x_admin_password: Annotated[str | None, Header(alias="X-Admin-Password")] = None,
     settings: Settings = Depends(get_app_settings),
 ) -> None:
+    # Rate-limit attempts per client BEFORE checking the password, so the single
+    # static admin password cannot be brute forced quickly.
+    limiter = getattr(request.app.state, "admin_rate_limiter", None)
+    if limiter is not None:
+        client = request.client.host if request.client else "unknown"
+        limiter.hit(f"admin:{client}")
     if not x_admin_password or not secrets.compare_digest(x_admin_password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid admin password.")
 

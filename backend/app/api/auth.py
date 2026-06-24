@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Consent, Student
+from app.config import Settings
+from app.database import get_app_settings, get_db
+from app.models import Student
 from app.schemas import AccessCodeRequest, AccessCodeResponse, StartRequest
+from app.services.consent import has_active_consent
 from app.services.routing import (
     COURSE_PREFIXES,
     assign_balanced_sequence,
@@ -20,17 +22,12 @@ def _normalise_name(raw_name: str) -> str:
     return " ".join(raw_name.split())
 
 
-def _has_consent(db: Session, student_id: str) -> bool:
-    consent = db.scalar(
-        select(Consent)
-        .where(Consent.student_id == student_id, Consent.accepted.is_(True))
-        .order_by(Consent.accepted_at.desc())
-    )
-    return consent is not None
-
-
 @router.post("/start", response_model=AccessCodeResponse)
-def start(payload: StartRequest, db: Session = Depends(get_db)):
+def start(
+    payload: StartRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     """Student-friendly sign in: just a name and a course. The platform keeps
     a pseudonymous study ID for every student and assigns the crossover
     sequence with balanced randomisation. Returning students (same name and
@@ -58,10 +55,9 @@ def start(payload: StartRequest, db: Session = Depends(get_db)):
             access_code=existing.access_code,
             display_name=existing.display_name,
             course=existing.course,
-            sequence=existing.sequence,
             project_title=existing.project_title,
             project_goal=existing.project_goal,
-            consent_accepted=_has_consent(db, existing.id),
+            consent_accepted=has_active_consent(db, existing.id, settings.consent_version),
             returning=True,
         )
 
@@ -79,14 +75,17 @@ def start(payload: StartRequest, db: Session = Depends(get_db)):
         access_code=student.access_code,
         display_name=student.display_name,
         course=student.course,
-        sequence=student.sequence,
         consent_accepted=False,
         returning=False,
     )
 
 
 @router.post("/access-code", response_model=AccessCodeResponse)
-def access_code(payload: AccessCodeRequest, db: Session = Depends(get_db)):
+def access_code(
+    payload: AccessCodeRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     code = payload.access_code.strip().upper()
     student = db.scalar(select(Student).where(Student.access_code == code))
     if student is None:
@@ -96,8 +95,7 @@ def access_code(payload: AccessCodeRequest, db: Session = Depends(get_db)):
         access_code=student.access_code,
         display_name=student.display_name,
         course=student.course,
-        sequence=student.sequence,
         project_title=student.project_title,
         project_goal=student.project_goal,
-        consent_accepted=_has_consent(db, student.id),
+        consent_accepted=has_active_consent(db, student.id, settings.consent_version),
     )

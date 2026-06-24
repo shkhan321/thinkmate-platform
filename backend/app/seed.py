@@ -4,11 +4,15 @@ from sqlalchemy.orm import Session
 from app.models import Student, Task
 
 
+# Demo/testing accounts only (never seeded in production — SEED_DEMO_STUDENTS).
+# The access code MUST NOT encode the crossover sequence: the code is shown to
+# the student and in exports, so a code like "ENG-A-001" would leak the study
+# arm. Codes are neutral; the A/B sequence lives only in the database column.
 SEED_STUDENTS = [
-    {"access_code": "ENG-A-001", "course": "engineering", "sequence": "A"},
-    {"access_code": "ENG-B-001", "course": "engineering", "sequence": "B"},
-    {"access_code": "PSY-A-001", "course": "psychology", "sequence": "A"},
-    {"access_code": "PSY-B-001", "course": "psychology", "sequence": "B"},
+    {"access_code": "ENG-DEMO-1", "course": "engineering", "sequence": "A"},
+    {"access_code": "ENG-DEMO-2", "course": "engineering", "sequence": "B"},
+    {"access_code": "PSY-DEMO-1", "course": "psychology", "sequence": "A"},
+    {"access_code": "PSY-DEMO-2", "course": "psychology", "sequence": "B"},
 ]
 
 

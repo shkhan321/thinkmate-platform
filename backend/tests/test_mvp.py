@@ -33,6 +33,23 @@ def make_client(tmp_path):
     return TestClient(create_app(settings))
 
 
+def _db_sequence(tmp_path, student_id):
+    """Read a student's assigned A/B sequence straight from the database.
+    The sequence is intentionally NOT exposed in student-facing API responses
+    (it is randomisation metadata), so tests verify it server-side."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'thinkmate_test.db'}")
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT sequence FROM students WHERE id = :id"), {"id": student_id}
+            ).fetchone()
+    finally:
+        engine.dispose()
+    return row[0] if row else None
+
+
 def test_health_reports_demo_mode(tmp_path):
     client = make_client(tmp_path)
 
@@ -121,13 +138,13 @@ def test_pilot_access_codes_can_be_seeded_without_demo_codes(tmp_path):
     )
     client = TestClient(create_app(settings))
 
-    demo_login = client.post("/api/auth/access-code", json={"access_code": "ENG-A-001"})
+    demo_login = client.post("/api/auth/access-code", json={"access_code": "ENG-DEMO-1"})
     assert demo_login.status_code == 404
 
     pilot_login = client.post("/api/auth/access-code", json={"access_code": "ENG-A-099"})
     assert pilot_login.status_code == 200
     assert pilot_login.json()["course"] == "engineering"
-    assert pilot_login.json()["sequence"] == "A"
+    assert _db_sequence(tmp_path, pilot_login.json()["student_id"]) == "A"
 
 
 def test_name_login_creates_pseudonymous_student(tmp_path):
@@ -139,7 +156,7 @@ def test_name_login_creates_pseudonymous_student(tmp_path):
     student = response.json()
     assert student["display_name"] == "Aisha Khalifa"
     assert student["course"] == "engineering"
-    assert student["sequence"] in {"A", "B"}
+    assert _db_sequence(tmp_path, student["student_id"]) in {"A", "B"}
     assert student["consent_accepted"] is False
     assert student["returning"] is False
     # Pseudonymous study ID is generated, not the name.
@@ -156,7 +173,7 @@ def test_name_login_resumes_existing_student(tmp_path):
 
     assert second["student_id"] == first["student_id"]
     assert second["access_code"] == first["access_code"]
-    assert second["sequence"] == first["sequence"]
+    assert _db_sequence(tmp_path, second["student_id"]) == _db_sequence(tmp_path, first["student_id"])
     assert second["returning"] is True
     assert first["access_code"].startswith("PSY-")
 
@@ -171,10 +188,11 @@ def test_name_login_requires_name_and_valid_course(tmp_path):
 def test_name_login_balances_crossover_sequences(tmp_path):
     client = make_client(tmp_path)
 
-    sequences = [
-        client.post("/api/auth/start", json={"name": f"Student {index}", "course": "engineering"}).json()["sequence"]
+    student_ids = [
+        client.post("/api/auth/start", json={"name": f"Student {index}", "course": "engineering"}).json()["student_id"]
         for index in range(10)
     ]
+    sequences = [_db_sequence(tmp_path, sid) for sid in student_ids]
 
     # Balanced randomisation keeps the two arms even across an even cohort.
     assert sequences.count("A") == 5
@@ -579,6 +597,47 @@ def test_blinded_export_does_not_leak_condition(tmp_path):
     assert "move_type" not in blob and "paul_elder" not in blob
     # The student's reasoning is present for scoring.
     assert any("My reasoning here." in a["reasoning"] for a in blinded["scoring_artifacts"])
+    # Per-artifact (not per-student) key, so even one student's single artifact
+    # carries an independent key and the cohort list cannot be joined to it.
+    assert all(a["key"].startswith("A") for a in blinded["scoring_artifacts"])
+    assert all("key" not in row for row in blinded["students"])
+
+
+def test_blinded_artifacts_cannot_be_paired_to_a_participant(tmp_path):
+    client = make_client(tmp_path)
+
+    # Two students, each producing BOTH a ThinkMate and a worksheet artifact.
+    for name in ("Aliyah", "Bushra"):
+        student = client.post("/api/auth/start", json={"name": name, "course": "engineering"}).json()
+        sid = student["student_id"]
+        client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+        client.post("/api/consent", json={"student_id": sid, "accepted": True})
+        tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+        tm = next(t for t in tasks if t["condition"] == "thinkmate")
+        ws = next(t for t in tasks if t["condition"] == "worksheet")
+        tm_session = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+        client.post("/api/dialogue/turn", json={"session_id": tm_session, "content": f"{name} chat reasoning."})
+        ws_session = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+        client.post(
+            "/api/worksheet/response",
+            json={"session_id": ws_session, "step_key": "claim", "prompt": "P", "response": f"{name} worksheet answer."},
+        )
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+
+    artifacts = blinded["scoring_artifacts"]
+    keys = [a["key"] for a in artifacts]
+    # One independent key per artifact: 2 students x 2 artifacts = 4 distinct keys.
+    assert len(artifacts) == 4
+    assert len(set(keys)) == 4
+    # No key is shared between two artifacts, so a participant's two artifacts
+    # cannot be linked, and the cohort list exposes no joinable key.
+    assert all("key" not in row for row in blinded["students"])
+    assert "engineering" in {row["course"] for row in blinded["students"]}
 
 
 def test_production_rejects_demo_seeding(tmp_path):
@@ -607,11 +666,13 @@ def test_production_rejects_default_admin_password(tmp_path):
 def test_access_code_consent_and_session_routing(tmp_path):
     client = make_client(tmp_path)
 
-    login = client.post("/api/auth/access-code", json={"access_code": "ENG-A-001"})
+    login = client.post("/api/auth/access-code", json={"access_code": "ENG-DEMO-1"})
     assert login.status_code == 200
     student = login.json()
     assert student["course"] == "engineering"
-    assert student["sequence"] == "A"
+    assert _db_sequence(tmp_path, student["student_id"]) == "A"
+    # The access code itself must not encode the crossover sequence.
+    assert "-A-" not in student["access_code"] and "-B-" not in student["access_code"]
     assert student["consent_accepted"] is False
 
     blocked = client.get("/api/tasks", params={"student_id": student["student_id"]})
@@ -641,7 +702,7 @@ def test_access_code_consent_and_session_routing(tmp_path):
 
 def test_dialogue_demo_mode_logs_turns_and_uses_questions(tmp_path):
     client = make_client(tmp_path)
-    student_id = client.post("/api/auth/access-code", json={"access_code": "ENG-A-001"}).json()["student_id"]
+    student_id = client.post("/api/auth/access-code", json={"access_code": "ENG-DEMO-1"}).json()["student_id"]
     client.post("/api/consent", json={"student_id": student_id, "accepted": True})
     task_id = client.get("/api/tasks", params={"student_id": student_id}).json()["tasks"][0]["id"]
     session_id = client.post("/api/sessions", json={"student_id": student_id, "task_id": task_id}).json()["id"]
@@ -662,6 +723,80 @@ def test_dialogue_demo_mode_logs_turns_and_uses_questions(tmp_path):
     assert summary.json()["turns"] == 2
 
 
+def test_is_low_effort_detection():
+    from app.services.socratic import is_low_effort
+
+    assert is_low_effort("idk") is True
+    assert is_low_effort("I don't know") is True
+    assert is_low_effort("just tell me the answer") is True
+    assert is_low_effort("no") is True
+    assert is_low_effort("I will use nylon because it is tougher than PLA.") is False
+    assert is_low_effort("Use nylon") is False
+    # A substantive answer that merely CONTAINS a stuck phrase is not low effort.
+    assert is_low_effort("This will help me decide between two materials so I can finish the analysis.") is False
+    assert is_low_effort("I am not sure yet, but I think nylon works because it resists fatigue.") is False
+    # An explicit give-up appeal is low effort even inside a longer message.
+    assert is_low_effort("I thought about it for a while but honestly just tell me the answer please.") is True
+
+
+def test_non_json_model_response_falls_back_instead_of_500(monkeypatch):
+    import json as _json
+
+    class BadBodyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            # A 200 OK whose body is not JSON (e.g. an upstream HTML error page).
+            raise _json.JSONDecodeError("Expecting value", "<html>", 0)
+
+    monkeypatch.setattr(
+        "app.services.model_adapter.httpx.post", lambda *args, **kwargs: BadBodyResponse()
+    )
+    settings = Settings(poe_api_key="test-poe-key", poe_model="GPT-4o-Mini")
+
+    text = generate_tutor_turn(
+        settings,
+        task_title="Stress-test your project",
+        scenario="Look for weak spots.",
+        student_content="I think nylon is strong enough.",
+        move={"move_type": "evidence", "paul_elder_target": "evidence", "prompt": "What evidence supports that?"},
+    )
+    # No exception, and a safe Socratic fallback is returned.
+    assert "?" in text
+    assert "scenario" in text.lower()
+
+
+def test_hf_error_envelope_is_not_shown_as_a_question():
+    from app.services.model_adapter import _extract_hf_text
+
+    # HF returns a 200 with an error envelope for cold/loading models. It must
+    # not become the tutor's question.
+    assert _extract_hf_text({"error": "Model is currently loading"}) == ""
+    assert _extract_hf_text({"generated_text": "What evidence supports that?"}) == "What evidence supports that?"
+
+
+def test_stuck_reply_stays_on_same_reasoning_step(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Zaid", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+
+    first = client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "I will use a five-blade prop."})
+    assert first.json()["tutor_turn"]["move_type"] == "clarification"
+
+    # A stuck reply keeps the tutor on the same step instead of advancing.
+    stuck = client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "idk"})
+    assert stuck.json()["tutor_turn"]["move_type"] == "clarification"
+
+    # A substantive reply then advances to the next step.
+    nxt = client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "Five blades give smoother thrust at low speed."})
+    assert nxt.json()["tutor_turn"]["move_type"] == "evidence_probe"
+
+
 def test_safeguard_replaces_direct_answer():
     result = apply_safeguard("The answer is to choose the cheapest design.")
 
@@ -670,9 +805,184 @@ def test_safeguard_replaces_direct_answer():
     assert "?" in result.content
 
 
+def test_consent_withdrawal_is_honored(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Maitha", "course": "engineering"}).json()
+    sid = student["student_id"]
+
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    assert client.get("/api/tasks", params={"student_id": sid}).status_code == 200
+
+    # A later decline withdraws the earlier acceptance — access is revoked.
+    client.post("/api/consent", json={"student_id": sid, "accepted": False})
+    assert client.get("/api/tasks", params={"student_id": sid}).status_code == 403
+    again = client.post("/api/auth/start", json={"name": "Maitha", "course": "engineering"}).json()
+    assert again["consent_accepted"] is False
+
+
+def test_consent_version_change_forces_reconsent(tmp_path):
+    db_url = f"sqlite:///{tmp_path / 'thinkmate_test.db'}"
+    base = dict(database_url=db_url, admin_password="admin-test", app_env="test", hf_api_token="", poe_api_key="")
+
+    v1 = TestClient(create_app(Settings(consent_version="consent-v1", **base)))
+    student = v1.post("/api/auth/start", json={"name": "Khalid", "course": "engineering"}).json()
+    sid = student["student_id"]
+    v1.post("/api/consent", json={"student_id": sid, "accepted": True})
+    assert v1.get("/api/tasks", params={"student_id": sid}).status_code == 200
+
+    # The approved consent text changes mid-pilot: the old acceptance is stale,
+    # so the student must re-consent before continuing.
+    v2 = TestClient(create_app(Settings(consent_version="consent-v2", **base)))
+    again = v2.post("/api/auth/start", json={"name": "Khalid", "course": "engineering"}).json()
+    assert again["student_id"] == sid
+    assert again["consent_accepted"] is False
+    assert v2.get("/api/tasks", params={"student_id": sid}).status_code == 403
+
+
+def test_effective_cors_falls_back_to_same_origin_in_production():
+    from app.main import effective_cors_origins
+
+    prod_wildcard = Settings(app_env="production", admin_password="strong", cors_origins="*")
+    assert effective_cors_origins(prod_wildcard) == []
+
+    prod_empty = Settings(app_env="production", admin_password="strong", cors_origins="")
+    assert effective_cors_origins(prod_empty) == []
+
+    prod_explicit = Settings(app_env="production", admin_password="strong", cors_origins="https://thinkmate.example")
+    assert effective_cors_origins(prod_explicit) == ["https://thinkmate.example"]
+
+    # Local development keeps the convenient wildcard.
+    dev = Settings(app_env="development", cors_origins="*")
+    assert effective_cors_origins(dev) == ["*"]
+
+
+def test_safeguard_flags_recommendations_but_allows_questions():
+    # New recommendation phrasings are caught.
+    assert apply_safeguard("You could use carbon fibre for the wing.").flagged is True
+    assert apply_safeguard("I would go with the lithium cells.").flagged is True
+    # A legitimate Socratic question is NOT flagged (the over-broad
+    # "the answer to" pattern was removed).
+    result = apply_safeguard("What is the answer to your first assumption?")
+    assert result.flagged is False
+    assert result.content == "What is the answer to your first assumption?"
+
+
+def test_student_transcript_excludes_tutor_turns():
+    from types import SimpleNamespace
+
+    from app.api.sessions import student_transcript
+
+    turns = [
+        SimpleNamespace(role="student", content="I will use nylon."),
+        SimpleNamespace(role="tutor", content="Why nylon over PLA?"),
+        SimpleNamespace(role="student", content="Nylon is tougher."),
+    ]
+    transcript = student_transcript(turns, final_answer="Nylon, for toughness.")
+    assert "Why nylon over PLA?" not in transcript
+    assert "I will use nylon." in transcript
+    assert "Nylon is tougher." in transcript
+    assert "S (final answer): Nylon, for toughness." in transcript
+
+
+def test_study_id_is_high_entropy_and_arm_neutral(tmp_path):
+    client = make_client(tmp_path)
+    student = client.post("/api/auth/start", json={"name": "Noura", "course": "engineering"}).json()
+    code = student["access_code"]
+    assert code.startswith("ENG-")
+    # 5 random bytes -> 10 hex chars after the prefix, and no A/B arm marker.
+    random_part = code.split("-", 1)[1]
+    assert len(random_part) == 10
+    assert "-A-" not in code and "-B-" not in code
+
+
+def test_free_text_length_is_capped(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Salem", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+
+    # An absurdly long message is rejected before it reaches the DB or the model.
+    huge = "x" * 7000
+    assert client.post("/api/dialogue/turn", json={"session_id": session_id, "content": huge}).status_code == 422
+    # An empty message is rejected (no wasted model call).
+    assert client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "   "}).status_code == 422
+
+
+def test_admin_endpoint_is_rate_limited(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
+        admin_password="admin-test",
+        app_env="test",
+        poe_api_key="",
+        admin_rate_limit_per_minute=3,
+    )
+    client = TestClient(create_app(settings))
+
+    # Wrong-password attempts are throttled: after the limit, 429 instead of 401.
+    statuses = [
+        client.get("/api/admin/summary", headers={"X-Admin-Password": "wrong"}).status_code
+        for _ in range(5)
+    ]
+    assert statuses[:3] == [401, 401, 401]
+    assert 429 in statuses[3:]
+
+
+def _read_completed_at(tmp_path, session_id):
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'thinkmate_test.db'}")
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT completed_at FROM sessions WHERE id = :id"), {"id": session_id}
+            ).fetchone()
+    finally:
+        engine.dispose()
+    return row[0] if row else None
+
+
+def test_complete_session_is_idempotent(tmp_path):
+    client = make_client(tmp_path)
+    sid = client.post("/api/auth/start", json={"name": "Idem", "course": "engineering"}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "A claim."})
+
+    first = client.post(f"/api/sessions/{session_id}/complete")
+    assert first.status_code == 200 and first.json()["status"] == "complete"
+    completed_at_first = _read_completed_at(tmp_path, session_id)
+
+    # Re-completing must not overwrite the original completion timestamp.
+    second = client.post(f"/api/sessions/{session_id}/complete")
+    assert second.status_code == 200 and second.json()["status"] == "complete"
+    assert _read_completed_at(tmp_path, session_id) == completed_at_first
+
+
+def test_unique_data_integrity_indexes_exist(tmp_path):
+    make_client(tmp_path)  # boots the app, which runs the schema migrations
+    from sqlalchemy import create_engine, inspect
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'thinkmate_test.db'}")
+    try:
+        inspector = inspect(engine)
+        session_indexes = {idx["name"]: idx["unique"] for idx in inspector.get_indexes("sessions")}
+        turn_indexes = {idx["name"]: idx["unique"] for idx in inspector.get_indexes("turns")}
+    finally:
+        engine.dispose()
+    # One canonical session per (student, task); unique turn ordering per session.
+    assert session_indexes.get("uq_session_student_task")
+    assert turn_indexes.get("uq_turn_session_number")
+
+
 def test_worksheet_response_and_exports(tmp_path):
     client = make_client(tmp_path)
-    student_id = client.post("/api/auth/access-code", json={"access_code": "ENG-B-001"}).json()["student_id"]
+    student_id = client.post("/api/auth/access-code", json={"access_code": "ENG-DEMO-2"}).json()["student_id"]
     client.post("/api/consent", json={"student_id": student_id, "accepted": True})
     worksheet_task = client.get("/api/tasks", params={"student_id": student_id}).json()["tasks"][0]
     assert worksheet_task["condition"] == "worksheet"

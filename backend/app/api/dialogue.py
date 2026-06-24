@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -8,7 +9,7 @@ from app.models import PilotSession, Student, Task, Turn
 from app.schemas import DialogueTurnRequest, DialogueTurnResponse, HintRequest, HintResponse
 from app.services.model_adapter import generate_hint, generate_tutor_turn
 from app.services.safeguard import apply_safeguard
-from app.services.socratic import move_for_tutor_turn
+from app.services.socratic import is_low_effort, move_for_tutor_turn
 
 router = APIRouter(prefix="/api/dialogue", tags=["dialogue"])
 
@@ -31,6 +32,8 @@ def dialogue_turn(
         raise HTTPException(status_code=400, detail="This session is assigned to guided worksheet.")
     if session.status == "complete":
         raise HTTPException(status_code=409, detail="This activity is already finished.")
+    if not payload.content.strip():
+        raise HTTPException(status_code=422, detail="Please write a message before sending.")
     task = db.get(Task, session.task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
@@ -56,10 +59,14 @@ def dialogue_turn(
     db.add(student_turn)
     db.flush()
 
-    tutor_count = db.scalar(
-        select(func.count()).select_from(Turn).where(Turn.session_id == session.id, Turn.role == "tutor")
-    )
-    move = move_for_tutor_turn(int(tutor_count or 0))
+    # Progress through the reasoning steps by how many DISTINCT moves have been
+    # used so far (not raw turn count), so a repeated/stuck turn does not skip a
+    # step. If the student is stuck, stay on the current step and ask an easier
+    # question instead of advancing.
+    steps_done = len({turn.move_type for turn in prior_turns if turn.role == "tutor" and turn.move_type})
+    stuck = is_low_effort(payload.content)
+    move_index = max(0, steps_done - 1) if (stuck and steps_done > 0) else steps_done
+    move = move_for_tutor_turn(move_index)
     raw_content = generate_tutor_turn(
         settings,
         task.title,
@@ -69,6 +76,7 @@ def dialogue_turn(
         project_title=(student.project_title or "") if student else "",
         project_goal=(student.project_goal or "") if student else "",
         history=history,
+        stuck=stuck,
     )
     safeguarded = apply_safeguard(raw_content)
     tutor_turn = Turn(
@@ -82,7 +90,14 @@ def dialogue_turn(
         safeguard_flag=safeguarded.flagged,
     )
     db.add(tutor_turn)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two turns raced for the same (session, turn_number) — the unique index
+        # rejected the loser. Ask the student to wait for the in-flight reply
+        # rather than silently corrupting the transcript order.
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Please wait for the previous reply before sending again.")
     db.refresh(student_turn)
     db.refresh(tutor_turn)
     return DialogueTurnResponse(student_turn=student_turn, tutor_turn=tutor_turn)
