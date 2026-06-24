@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildReasoningTree,
+  buildWorksheetTree,
   canSubmitWorksheet,
   conditionGuide,
   courseLabel,
@@ -10,6 +12,11 @@ import {
   taskActionLabel,
   tourSteps
 } from "./flow";
+import type { Turn } from "./types";
+
+function turn(role: "student" | "tutor", content: string, moveType?: string): Turn {
+  return { id: "x", session_id: "s", turn_number: 0, role, content, move_type: moveType ?? null, safeguard_flag: false };
+}
 
 describe("pilot flow helpers", () => {
   it("labels task action by assigned condition", () => {
@@ -69,5 +76,40 @@ describe("pilot flow helpers", () => {
     expect(covered.has("clarify")).toBe(true);
     expect(covered.has("evidence")).toBe(true);
     expect(covered.has("assumption")).toBe(false);
+  });
+
+  it("builds a bottom-up reasoning tree from the student's own chat answers", () => {
+    const tree = buildReasoningTree([
+      turn("student", "I will use a nylon hinge because it resists fatigue"),
+      turn("tutor", "What evidence supports that?", "evidence_probe"),
+      turn("student", "Fatigue tests on similar parts passed"),
+      turn("tutor", "What assumption are you making?", "assumption_probe")
+    ]);
+
+    // Order is bottom-up: claim is the foundation, revise is the top.
+    expect(tree.map((node) => node.key)).toEqual(["claim", "evidence", "assumption", "counterview", "revise"]);
+    const byKey = Object.fromEntries(tree.map((node) => [node.key, node]));
+    // The opening message is the claim; the next answers the evidence question.
+    expect(byKey.claim.filled).toBe(true);
+    expect(byKey.claim.full).toContain("nylon hinge");
+    expect(byKey.evidence.filled).toBe(true);
+    expect(byKey.evidence.full).toContain("Fatigue tests");
+    // The tutor just asked about assumptions and the student hasn't answered yet.
+    expect(byKey.assumption.filled).toBe(false);
+    expect(byKey.assumption.current).toBe(true);
+    expect(byKey.revise.filled).toBe(false);
+    // Each node holds the student's own words only (no tutor text leaks in).
+    expect(tree.some((node) => node.full.includes("What evidence"))).toBe(false);
+  });
+
+  it("builds the same tree shape from the worksheet's saved answers", () => {
+    const tree = buildWorksheetTree([
+      { step_key: "claim", response: "A diary study fits best" },
+      { step_key: "reflection", response: "I would keep the diary method" }
+    ]);
+    const byKey = Object.fromEntries(tree.map((node) => [node.key, node]));
+    expect(byKey.claim.filled).toBe(true);
+    expect(byKey.revise.filled).toBe(true);
+    expect(byKey.evidence.filled).toBe(false);
   });
 });

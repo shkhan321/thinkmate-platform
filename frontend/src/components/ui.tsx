@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { REASONING_STEPS, studentProgress, tourSteps, type StudentStage } from "../flow";
+import { REASONING_STEPS, studentProgress, tourSteps, type ReasoningNode, type StudentStage } from "../flow";
 import { CheckIcon, CloseIcon, SparkIcon } from "./icons";
 
 export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
@@ -136,6 +136,64 @@ export function ReasoningMap({
           );
         })}
       </ol>
+    </div>
+  );
+}
+
+export function ReasoningTree({
+  nodes,
+  title = "Your reasoning tree",
+  subtitle = "Built from your own answers — it grows as you go."
+}: {
+  nodes: ReasoningNode[];
+  title?: string;
+  subtitle?: string;
+}) {
+  const doneCount = nodes.filter((node) => node.filled).length;
+  // Render top-to-bottom so the foundation (claim) sits at the bottom and the
+  // newest thinking (revise) is at the top — the tree builds upward.
+  const topDown = [...nodes].reverse();
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-slate-800">{title}</p>
+        <span className="text-xs font-semibold text-brand-600">
+          {doneCount}/{nodes.length}
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
+      <p className="mt-2 text-[11px] font-semibold text-slate-400">↑ your latest thinking</p>
+      <ol className="mt-1 space-y-1.5">
+        {topDown.map((node, index) => {
+          const tone = node.filled
+            ? "border-emerald-200 bg-emerald-50"
+            : node.current
+              ? "border-brand-300 bg-brand-50 ring-1 ring-brand-200"
+              : "border-dashed border-slate-200 bg-white";
+          const labelTone = node.filled
+            ? "text-emerald-700"
+            : node.current
+              ? "text-brand-700"
+              : "text-slate-400";
+          const isFoundation = index === topDown.length - 1;
+          return (
+            <li key={node.key}>
+              <div className={`rounded-2xl border p-3 ${tone}`} title={node.full || undefined}>
+                <p className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide ${labelTone}`}>
+                  {node.filled && <CheckIcon className="h-3 w-3" />}
+                  {node.label}
+                  {node.current && !node.filled && <span className="font-semibold lowercase"> · now</span>}
+                </p>
+                <p className={`mt-0.5 text-sm ${node.filled ? "font-semibold text-slate-800" : "text-slate-400"}`}>
+                  {node.filled ? node.answer : "— your turn —"}
+                </p>
+              </div>
+              {!isFoundation && <div className="mx-auto h-2 w-px bg-slate-200" aria-hidden="true" />}
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-1.5 text-[11px] font-semibold text-slate-400">start: your claim</p>
     </div>
   );
 }

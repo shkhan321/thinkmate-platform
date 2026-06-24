@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { REASONING_STEPS, conditionTitle, coveredReasoning } from "../flow";
+import { REASONING_STEPS, buildReasoningTree, conditionTitle, coveredReasoning } from "../flow";
 import type { PilotSession, PilotTask, Turn } from "../types";
-import { Callout, PedagogyTags, ReasoningMap } from "./ui";
+import { Callout, PedagogyTags, ReasoningTree } from "./ui";
 import { ArrowLeftIcon, ChatIcon, LightbulbIcon, SendIcon, SparkIcon } from "./icons";
 
 export function ThinkMateChat({
@@ -38,7 +38,6 @@ export function ThinkMateChat({
     .filter((turn, index) => turn.role === "tutor" && turns.slice(index + 1).some((later) => later.role === "student"))
     .map((turn) => turn.move_type);
   const covered = coveredReasoning(answeredMoveTypes);
-  const currentKey = REASONING_STEPS.find((step) => !covered.has(step.key))?.key ?? null;
   const allStepsCovered = covered.size === REASONING_STEPS.length;
 
   // Resume the saved conversation when reopening this activity.
@@ -123,7 +122,7 @@ export function ThinkMateChat({
         )}
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-          <ReasoningMap covered={covered} currentKey={currentKey} />
+          <ReasoningTree nodes={buildReasoningTree(turns)} />
         </div>
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-4">

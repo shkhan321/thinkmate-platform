@@ -9,7 +9,30 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, deployed to production)*
+## v0.12.0 — Reasoning tree *(2026-06-24, built — not yet deployed)*
+
+The student now **sees their reasoning as a tree built from their own short
+answers**, growing bottom-up from their claim to their revised conclusion — a
+"watch your thinking take shape" view of progress.
+
+- Frontend-only and **blinding-safe**: the tree is computed in the browser from
+  data already on hand (each chat turn + its reasoning dimension), and every node
+  holds the **student's own words** — no AI text enters it.
+- Live in the ThinkMate chat (replaces the flat reasoning map): each student
+  message fills the dimension of the question it answered; the dimension being
+  asked now is highlighted; the foundation (claim) sits at the bottom.
+- Also rendered as a **keepsake on the completion takeaway**, for both the chat
+  (from turns) and the guided worksheet (from its five saved answers) — symmetric
+  across conditions.
+- New helpers `buildReasoningTree` / `buildWorksheetTree` and a `ReasoningTree`
+  component, with unit tests. Frontend 13 tests pass; verified live in the chat.
+
+> Model note: production is **verified running GLM-5 (Poe)** (`/health` →
+> `model_mode=poe`), matching the decision to keep GLM-5 primary. The v0.11.0
+> Gemini wiring is merged but **not activated** — no `GEMINI_API_KEY` is set.
+> Setting that key in Railway is all it takes to switch to Gemini later.
+
+## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, merged; not activated — GLM-5 still live)*
 
 Adds **Google Gemini (free tier) as the primary model**, with **Poe as the
 automatic alternate** when Gemini is busy or unavailable.
@@ -165,5 +188,7 @@ See the design discussion for detail. Highest-leverage next steps:
    with a small classifier call.
 5. **Multimodal for engineers** — let students sketch/upload a design or study
    diagram and have the tutor reason about it.
-6. **Keepsake "reasoning portrait"** — claim, strongest support, open questions,
-   and likely examiner questions, as a genuinely useful artifact.
+6. **Keepsake "reasoning portrait"** — partly shipped in v0.12.0 (the reasoning
+   tree). Still open: add likely examiner questions and a polished export.
+7. **Textbook sketch on demand** — an opt-in, *conceptual* (never solved) diagram
+   (SVG/Mermaid) the student can call up to think with; pins to a tree node.
