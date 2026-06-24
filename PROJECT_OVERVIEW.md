@@ -250,9 +250,11 @@ plus a hidden **admin** view at URL hash `#admin`.
    Each card shows its style and Done / In-progress / Continue state.
 5. **Active activity** — one of two conditions:
    - **ThinkMate chat** (`Chat.tsx`): a chat with the tutor; a live **reasoning
-     map** lights up the five thinking steps as the student demonstrates them; an
+     tree** (`ReasoningTree`) builds bottom-up from the student's own short
+     answers (claim → … → revise), showing progress in their own words; an
      optional "Stuck? see a suggested reply" hint; pedagogy chips (Bloom +
-     Paul-Elder) with tooltips. Finish is gated until ≥1 exchange.
+     Paul-Elder) with tooltips. Finish is gated until ≥1 exchange. The same tree
+     is shown as a keepsake on completion (worksheet too, from its saved answers).
    - **Guided worksheet** (`Worksheet.tsx`): five fixed boxes (claim, evidence,
      assumption, counter-view, reflection) with example starters. **No AI** — this
      is the control condition; it never calls the model.

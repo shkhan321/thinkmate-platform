@@ -1,4 +1,4 @@
-import type { Condition, ModelMode } from "./types";
+import type { Condition, ModelMode, Turn } from "./types";
 
 export type StudentStage =
   | "login"
@@ -64,6 +64,124 @@ export const REASONING_STEPS: ReasoningStep[] = [
 export function coveredReasoning(moveTypes: Array<string | null | undefined>): Set<string> {
   const seen = new Set(moveTypes.filter(Boolean) as string[]);
   return new Set(REASONING_STEPS.filter((step) => seen.has(step.moveType)).map((step) => step.key));
+}
+
+// The reasoning "tree": the student's own short answers, ordered bottom-up from
+// their claim to their revised conclusion. Each node holds the student's own
+// words (never AI text), so it is a faithful, blinding-safe view of their work.
+export interface ReasoningNode {
+  key: string;
+  label: string;
+  answer: string; // short snippet shown in the node
+  full: string; // the student's full text (for hover / accessibility)
+  filled: boolean; // the student has answered this dimension
+  current: boolean; // the dimension being worked on right now
+}
+
+// Bottom-up order: claim is the foundation, revise is the top of the tree.
+export const TREE_NODES: Array<{ key: string; label: string; moveType: string }> = [
+  { key: "claim", label: "Claim", moveType: "clarification" },
+  { key: "evidence", label: "Evidence", moveType: "evidence_probe" },
+  { key: "assumption", label: "Assumption", moveType: "assumption_probe" },
+  { key: "counterview", label: "Counter-view", moveType: "counterview" },
+  { key: "revise", label: "Revise", moveType: "reflection" }
+];
+
+function reasoningSnippet(text: string): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= 42) return clean;
+  const cut = clean.slice(0, 40);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 12 ? cut.slice(0, lastSpace) : cut).trim()}…`;
+}
+
+const LOW_EFFORT_FILLERS = new Set([
+  "yes", "no", "ok", "okay", "maybe", "hmm", "sure", "nope", "yeah", "idk", "?", "help"
+]);
+const LOW_EFFORT_PHRASES = [
+  "i don't know", "i dont know", "idk", "dont know", "do not know", "not sure",
+  "no idea", "no clue", "help me", "just tell me", "tell me the answer",
+  "give me the answer", "i give up"
+];
+
+// A reply that signals the student is stuck / not really answering. Such a reply
+// must NOT fill a tree node (it would mark a dimension "done" with junk and even
+// overwrite a real earlier answer). Mirrors the backend is_low_effort heuristic.
+export function isLowEffortAnswer(content: string): boolean {
+  const text = content.trim().toLowerCase();
+  if (!text) return true;
+  if (LOW_EFFORT_FILLERS.has(text)) return true;
+  const words = text.split(/\s+/);
+  if (words.length <= 6 && LOW_EFFORT_PHRASES.some((phrase) => text.includes(phrase))) return true;
+  return words.length <= 2 && text.length <= 8;
+}
+
+function treeFromAnswers(answers: Record<string, string>, currentKey: string | null): ReasoningNode[] {
+  return TREE_NODES.map((node) => {
+    const full = (answers[node.key] || "").trim();
+    return {
+      key: node.key,
+      label: node.label,
+      full,
+      answer: reasoningSnippet(full),
+      filled: full.length > 0,
+      current: node.key === currentKey
+    };
+  });
+}
+
+// Build the tree from a ThinkMate chat. Each student message answers the question
+// just asked: its dimension is the move_type of the preceding tutor turn (the
+// very first message is the opening claim). The latest answer per dimension wins.
+export function buildReasoningTree(turns: Turn[]): ReasoningNode[] {
+  const moveToKey: Record<string, string> = {};
+  TREE_NODES.forEach((node) => (moveToKey[node.moveType] = node.key));
+
+  const answers: Record<string, string> = {};
+  let sawTutor = false;
+  let pendingMove: string | null | undefined = null;
+  for (const turn of turns) {
+    if (turn.role === "tutor") {
+      sawTutor = true;
+      pendingMove = turn.move_type;
+    } else {
+      // The opening message is the claim; after that, route by the question just
+      // asked. An unknown/blank move maps nowhere (the answer is ignored, not
+      // wrongly dumped into the claim).
+      const key = sawTutor ? (pendingMove ? moveToKey[pendingMove] ?? null : null) : "claim";
+      // A stuck / non-answer ("idk", "not sure") must not fill a node or overwrite
+      // a real earlier answer. And the claim is the foundation: keep the student's
+      // FIRST real claim rather than letting a later clarification reply replace it.
+      if (key && !isLowEffortAnswer(turn.content) && !(key === "claim" && answers.claim)) {
+        answers[key] = turn.content;
+      }
+      pendingMove = null;
+    }
+  }
+  // "current" = the dimension being asked now if it is still unanswered, else the
+  // next gap to fill — so the highlight always points at real remaining work.
+  const pendingKey = pendingMove ? moveToKey[pendingMove] ?? null : null;
+  const firstGap = TREE_NODES.find((node) => !answers[node.key])?.key ?? null;
+  const currentKey = pendingKey && !answers[pendingKey] ? pendingKey : firstGap;
+  return treeFromAnswers(answers, currentKey);
+}
+
+// Build the tree from the guided worksheet's saved answers (the same five
+// dimensions), so the non-AI condition gets the same keepsake on completion.
+export function buildWorksheetTree(responses: Array<{ step_key: string; response: string }>): ReasoningNode[] {
+  const stepToKey: Record<string, string> = {
+    claim: "claim",
+    evidence: "evidence",
+    assumption: "assumption",
+    counterview: "counterview",
+    reflection: "revise"
+  };
+  const answers: Record<string, string> = {};
+  for (const row of responses) {
+    const key = stepToKey[row.step_key];
+    if (key) answers[key] = row.response;
+  }
+  return treeFromAnswers(answers, null);
 }
 
 export function courseLabel(course: string): string {

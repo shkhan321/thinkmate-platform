@@ -2,6 +2,8 @@ import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import {
   COURSES,
+  buildReasoningTree,
+  buildWorksheetTree,
   conditionTitle,
   conditionGuide,
   courseCode,
@@ -11,6 +13,7 @@ import {
   projectDraftKey,
   studentProgress,
   taskActionLabel,
+  type ReasoningNode,
   type StudentStage
 } from "./flow";
 import type { Health, PilotSession, PilotTask, Student } from "./types";
@@ -18,7 +21,7 @@ import { ThinkMateChat } from "./components/Chat";
 import { Worksheet } from "./components/Worksheet";
 import { AdminPanel } from "./components/Admin";
 import { ProjectIntake } from "./components/ProjectIntake";
-import { Callout, QuickTour, Stepper, Wordmark } from "./components/ui";
+import { Callout, QuickTour, ReasoningTree, Stepper, Wordmark } from "./components/ui";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -1024,6 +1027,7 @@ function CompletionScreen({
   const [summary, setSummary] = useState("");
   const [kind, setKind] = useState<string>("");
   const [finalAnswer, setFinalAnswer] = useState<string | null>(null);
+  const [tree, setTree] = useState<ReasoningNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1036,6 +1040,7 @@ function CompletionScreen({
     let active = true;
     setLoading(true);
     setFailed(false);
+    setTree([]);
     api
       .sessionSummary(session.id)
       .then((result) => {
@@ -1046,6 +1051,19 @@ function CompletionScreen({
       })
       .catch(() => active && setFailed(true))
       .finally(() => active && setLoading(false));
+    // The reasoning tree is a keepsake of the student's own answers (best-effort;
+    // a failure here never blocks the takeaway).
+    api
+      .sessionState(session.id)
+      .then((state) => {
+        if (!active) return;
+        setTree(
+          state.condition === "worksheet"
+            ? buildWorksheetTree(state.worksheet_responses)
+            : buildReasoningTree(state.turns)
+        );
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -1130,6 +1148,17 @@ function CompletionScreen({
           )}
         </div>
       </div>
+
+      {tree.some((node) => node.filled) && (
+        <div className="tm-card p-5 text-left">
+          <ReasoningTree
+            nodes={tree}
+            variant="keepsake"
+            title="Your reasoning, mapped"
+            subtitle="The structure you built, in your own words — yours to keep."
+          />
+        </div>
+      )}
 
       {session && <Feedback studentId={session.student_id} />}
 

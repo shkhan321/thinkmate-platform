@@ -9,7 +9,66 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, deployed to production)*
+## v0.13.0 — Encouraging, human tutor tone *(2026-06-24, built — not yet deployed)*
+
+A deliberate pedagogical decision by the PI: ThinkMate should keep students
+moving in the **right direction** and never leave them feeling lost — so the
+tutor now **encourages and gently steers**, like a warm human mentor, instead of
+only asking neutral questions.
+
+- The tutor opens each reply with a short, genuine acknowledgement of what is
+  good in the student's answer ("Nice, that's a clear claim", "You're on the
+  right track"), tells them when their reasoning is heading the right way, then
+  asks one question that pushes it further (`SYSTEM_PROMPT` / `_build_prompt`).
+- Stuck students get warm reassurance plus an easier first step.
+- The answer-leak **safeguard is relaxed to match**: it now blocks only a flat
+  answer-dump ("the answer is …"); directional encouragement ("you could look
+  at…", "I'd consider…") is allowed. A little answer-direction is acceptable by
+  design — the goal is guidance, not withholding. The blatant-answer block and a
+  length cap remain.
+- The non-AI worksheet control is unaffected, and the blinded export still holds
+  only the student's own words, so the study's integrity layer is preserved.
+- Backend 65 tests pass; the warm tone is verified live against GLM-5 after deploy.
+
+## v0.12.0 — Reasoning tree *(2026-06-24, built — not yet deployed)*
+
+The student now **sees their reasoning as a tree built from their own short
+answers**, growing bottom-up from their claim to their revised conclusion — a
+"watch your thinking take shape" view of progress.
+
+- Frontend-only and **blinding-safe**: the tree is computed in the browser from
+  data already on hand (each chat turn + its reasoning dimension), and every node
+  holds the **student's own words** — no AI text enters it.
+- Live in the ThinkMate chat (replaces the flat reasoning map): each student
+  message fills the dimension of the question it answered; the dimension being
+  asked now is highlighted; the foundation (claim) sits at the bottom.
+- Also rendered as a **keepsake on the completion takeaway**, for both the chat
+  (from turns) and the guided worksheet (from its five saved answers) — symmetric
+  across conditions.
+- New helpers `buildReasoningTree` / `buildWorksheetTree` and a `ReasoningTree`
+  component, with unit tests. Frontend 13 tests pass; verified live in the chat.
+
+**Hardening + engagement round** (after a multi-agent bug/UX review):
+- **Bugs fixed:** a stuck reply ("idk") no longer fills/overwrites a node; a later
+  clarification answer no longer overwrites the student's original claim; an
+  unknown/blank move no longer misroutes an answer into the claim; long words now
+  `break-words` instead of overflowing; full answer text is reachable by **tap**
+  (not hover-only) on touch devices; node states no longer rely on colour alone.
+- **More engaging:** a node **pops** when it newly fills; the active dimension
+  shows a gentle pulsing "now" dot; a **"Complete"** celebration when all five
+  fill; a stronger upward spine; a compact **progress chip in the chat header on
+  mobile** (where the tree sits below the chat).
+- **Accessibility:** a polite live-region announces each newly-filled dimension;
+  the tree list has an accessible name; orientation captions meet AA contrast.
+- One source of truth for progress (the tree's filled count drives the header,
+  the tree, and the finish-gate). Frontend 16 tests pass; verified live.
+
+> Model note: production is **verified running GLM-5 (Poe)** (`/health` →
+> `model_mode=poe`), matching the decision to keep GLM-5 primary. The v0.11.0
+> Gemini wiring is merged but **not activated** — no `GEMINI_API_KEY` is set.
+> Setting that key in Railway is all it takes to switch to Gemini later.
+
+## v0.11.0 — Gemini primary + Poe fallback *(2026-06-24, merged; not activated — GLM-5 still live)*
 
 Adds **Google Gemini (free tier) as the primary model**, with **Poe as the
 automatic alternate** when Gemini is busy or unavailable.
@@ -165,5 +224,7 @@ See the design discussion for detail. Highest-leverage next steps:
    with a small classifier call.
 5. **Multimodal for engineers** — let students sketch/upload a design or study
    diagram and have the tutor reason about it.
-6. **Keepsake "reasoning portrait"** — claim, strongest support, open questions,
-   and likely examiner questions, as a genuinely useful artifact.
+6. **Keepsake "reasoning portrait"** — partly shipped in v0.12.0 (the reasoning
+   tree). Still open: add likely examiner questions and a polished export.
+7. **Textbook sketch on demand** — an opt-in, *conceptual* (never solved) diagram
+   (SVG/Mermaid) the student can call up to think with; pins to a tree node.

@@ -1,47 +1,31 @@
 from dataclasses import dataclass
 
 
-# Phrases that signal the tutor is giving an answer/solution rather than asking.
+# ThinkMate is now allowed to encourage, reassure and gently STEER the student in
+# the right direction (a little answer-direction is fine — that is what keeps them
+# from feeling lost). So the safeguard only catches a FLAT answer-dump where the
+# tutor hands over the finished conclusion, not directional encouragement like
+# "you could look at…" or "I'd consider…".
 DIRECT_ANSWER_PATTERNS = (
     "the answer is",
     "the correct answer",
     "the right answer",
-    "you should write",
-    "you should use",
-    "you should choose",
-    "i recommend",
-    "i suggest you",
-    "i would recommend",
-    "the solution is",
-    "the best option is",
-    "the best choice is",
-    "the best approach is",
-    "here is how",
-    "here's how",
-    "final answer",
-    "in conclusion",
-    "to summarize",
+    "the final answer",
     "therefore the correct answer",
-    "you could use",
-    "you can use",
-    "you need to use",
-    "you must use",
-    "you ought to",
-    "i would use",
-    "i'd use",
-    "i would go with",
-    "i'd go with",
-    "go with the",
-    "my recommendation",
-    "what i would do",
-    "what i'd do",
+    "the solution is",
+    "here is the answer",
+    "here's the answer",
+    "the answer to your question is",
 )
 
-# A single Socratic question should be short. Anything much longer is likely an
-# explanation/answer, so it is replaced with the safe fallback.
-MAX_TUTOR_CHARS = 600
+# A warm reply (a brief acknowledgement plus one question) is still short. Anything
+# much longer is likely an explanation/answer dump, so it is replaced.
+MAX_TUTOR_CHARS = 800
 
-SAFE_FALLBACK = "I cannot give the answer directly. What evidence or assumption would you examine next?"
+SAFE_FALLBACK = (
+    "You're on the right track — let's keep this one yours. "
+    "What evidence or assumption would you look at next?"
+)
 
 
 @dataclass(frozen=True)

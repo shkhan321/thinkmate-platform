@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { REASONING_STEPS, conditionTitle, coveredReasoning } from "../flow";
+import { buildReasoningTree, conditionTitle } from "../flow";
 import type { PilotSession, PilotTask, Turn } from "../types";
-import { Callout, PedagogyTags, ReasoningMap } from "./ui";
+import { Callout, PedagogyTags, ReasoningTree } from "./ui";
 import { ArrowLeftIcon, ChatIcon, LightbulbIcon, SendIcon, SparkIcon } from "./icons";
 
 export function ThinkMateChat({
@@ -29,17 +29,12 @@ export function ThinkMateChat({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const exchanges = Math.ceil(turns.length / 2);
-  // A reasoning step counts as "covered" only once the student has RESPONDED to
-  // the question that raised it (a student turn follows that tutor turn). This
-  // measures reasoning the student actually demonstrated — not merely questions
-  // ThinkMate asked, which a student could trigger with low-effort replies — and
-  // keeps it comparable to the worksheet's fill-based progress.
-  const answeredMoveTypes = turns
-    .filter((turn, index) => turn.role === "tutor" && turns.slice(index + 1).some((later) => later.role === "student"))
-    .map((turn) => turn.move_type);
-  const covered = coveredReasoning(answeredMoveTypes);
-  const currentKey = REASONING_STEPS.find((step) => !covered.has(step.key))?.key ?? null;
-  const allStepsCovered = covered.size === REASONING_STEPS.length;
+  // One source of truth for progress: the reasoning tree. A dimension counts as
+  // done only when the student gave a real (non-low-effort) answer to it, so the
+  // header progress, the tree, and the finish-gate all agree.
+  const tree = buildReasoningTree(turns);
+  const treeDone = tree.filter((node) => node.filled).length;
+  const allStepsCovered = tree.length > 0 && treeDone === tree.length;
 
   // Resume the saved conversation when reopening this activity.
   useEffect(() => {
@@ -77,11 +72,10 @@ export function ThinkMateChat({
   }
 
   function handleFinish() {
-    const coveredCount = covered.size;
     if (
-      coveredCount < 3 &&
+      treeDone < 3 &&
       !window.confirm(
-        `You've worked through ${coveredCount} of ${REASONING_STEPS.length} thinking steps. ` +
+        `You've worked through ${treeDone} of ${tree.length} thinking steps. ` +
           "A bit more discussion usually makes a stronger answer. Finish anyway?"
       )
     ) {
@@ -123,7 +117,7 @@ export function ThinkMateChat({
         )}
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-          <ReasoningMap covered={covered} currentKey={currentKey} />
+          <ReasoningTree nodes={tree} />
         </div>
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-4">
@@ -166,12 +160,20 @@ export function ThinkMateChat({
             </span>
             <div className="leading-tight">
               <p className="font-bold text-slate-900">ThinkMate</p>
-              <p className="text-xs text-slate-500">Asks questions — never gives the answer</p>
+              <p className="text-xs text-slate-500">Encourages and guides — never just hands you the answer</p>
             </div>
           </div>
-          <button type="button" className="tm-btn-ghost !px-3 !py-1.5 text-xs" onClick={onBack}>
-            <ArrowLeftIcon className="h-4 w-4" /> Back
-          </button>
+          <div className="flex items-center gap-2">
+            <span
+              className="tm-chip bg-brand-50 text-brand-700 lg:hidden"
+              aria-label={`Reasoning progress: ${treeDone} of ${tree.length} steps`}
+            >
+              {allStepsCovered ? "Reasoning complete" : `Reasoning ${treeDone}/${tree.length}`}
+            </span>
+            <button type="button" className="tm-btn-ghost !px-3 !py-1.5 text-xs" onClick={onBack}>
+              <ArrowLeftIcon className="h-4 w-4" /> Back
+            </button>
+          </div>
         </header>
 
         <div

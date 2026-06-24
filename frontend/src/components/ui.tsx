@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { REASONING_STEPS, studentProgress, tourSteps, type StudentStage } from "../flow";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { REASONING_STEPS, studentProgress, tourSteps, type ReasoningNode, type StudentStage } from "../flow";
 import { CheckIcon, CloseIcon, SparkIcon } from "./icons";
 
 export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
@@ -136,6 +136,134 @@ export function ReasoningMap({
           );
         })}
       </ol>
+    </div>
+  );
+}
+
+export function ReasoningTree({
+  nodes,
+  title = "Your reasoning tree",
+  subtitle = "Built from your own answers — it grows as you go.",
+  variant = "live"
+}: {
+  nodes: ReasoningNode[];
+  title?: string;
+  subtitle?: string;
+  variant?: "live" | "keepsake";
+}) {
+  const doneCount = nodes.filter((node) => node.filled).length;
+  const allDone = nodes.length > 0 && doneCount === nodes.length;
+  // Render top-to-bottom so the foundation (claim) sits at the bottom and the
+  // newest thinking (revise) is at the top — the tree builds upward.
+  const topDown = [...nodes].reverse();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Detect dimensions that newly filled and (a) one-shot "pop" them, (b) announce
+  // them politely to screen readers — so the "watch your thinking grow" moment
+  // lands for everyone. Keyed by the SET of filled dimensions (a stable string)
+  // so re-renders from a new turns array don't retrigger.
+  const filledSignature = nodes.filter((node) => node.filled).map((node) => node.key).join(",");
+  const prevFilled = useRef<Set<string>>(new Set());
+  const [popped, setPopped] = useState<Set<string>>(new Set());
+  const [announce, setAnnounce] = useState("");
+  useEffect(() => {
+    const filledNow = new Set(filledSignature ? filledSignature.split(",") : []);
+    const newly = [...filledNow].filter((key) => !prevFilled.current.has(key));
+    prevFilled.current = filledNow;
+    if (!newly.length) return;
+    const last = nodes.find((node) => node.key === newly[newly.length - 1]);
+    if (last) setAnnounce(`${last.label} added to your reasoning tree.`);
+    setPopped(new Set(newly));
+    const timer = window.setTimeout(() => setPopped(new Set()), 600);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filledSignature]);
+
+  const emptyLabel = variant === "keepsake" ? "— not covered —" : "— your turn —";
+  const titleId = "reasoning-tree-title";
+
+  function toggle(key: string) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <p id={titleId} className="text-sm font-bold text-slate-800">{title}</p>
+        {allDone ? (
+          <span className="tm-chip bg-emerald-100 text-emerald-700">
+            <CheckIcon className="h-3 w-3" /> Complete
+          </span>
+        ) : (
+          <span className="text-xs font-semibold text-brand-600">
+            {doneCount}/{nodes.length}
+          </span>
+        )}
+      </div>
+      <p className="mt-0.5 text-xs text-slate-500">
+        {allDone ? "Nicely built — every part of your reasoning is here." : subtitle}
+      </p>
+      <p className="mt-2 text-[11px] font-semibold text-slate-500">↑ your latest thinking</p>
+      <ol className="mt-1 space-y-1.5" aria-labelledby={titleId}>
+        {topDown.map((node, index) => {
+          const tone = node.filled
+            ? "border-emerald-200 bg-emerald-50"
+            : node.current
+              ? "border-brand-300 bg-brand-50 ring-1 ring-brand-200"
+              : "border-dashed border-slate-200 bg-white";
+          const labelTone = node.filled
+            ? "text-emerald-700"
+            : node.current
+              ? "text-brand-700"
+              : "text-slate-500";
+          const isFoundation = index === topDown.length - 1;
+          const isExpanded = variant === "keepsake" || expanded.has(node.key);
+          const canExpand = variant === "live" && node.filled && node.full.length > node.answer.length;
+          const popClass = variant === "live" && popped.has(node.key) ? " tm-pop" : "";
+          return (
+            <li key={node.key}>
+              <div className={`min-w-0 rounded-2xl border p-3${popClass} ${tone}`}>
+                <p className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide ${labelTone}`}>
+                  {node.filled && <CheckIcon className="h-3 w-3" />}
+                  {node.label}
+                  {node.current && !node.filled && (
+                    <span className="inline-flex items-center gap-1 font-semibold lowercase">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" aria-hidden="true" />
+                      now
+                    </span>
+                  )}
+                </p>
+                {node.filled ? (
+                  canExpand ? (
+                    <button
+                      type="button"
+                      onClick={() => toggle(node.key)}
+                      aria-expanded={isExpanded}
+                      className="mt-0.5 block w-full break-words text-left text-sm font-semibold text-slate-800"
+                    >
+                      {isExpanded ? node.full : node.answer}
+                      <span className="ml-1 text-xs font-normal text-brand-600">{isExpanded ? "show less" : "show full"}</span>
+                    </button>
+                  ) : (
+                    <p className="mt-0.5 break-words text-sm font-semibold text-slate-800">
+                      {isExpanded ? node.full : node.answer}
+                    </p>
+                  )
+                ) : (
+                  <p className="mt-0.5 text-sm text-slate-500">{emptyLabel}</p>
+                )}
+              </div>
+              {!isFoundation && <div className="mx-auto h-3 w-0.5 bg-brand-200" aria-hidden="true" />}
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-1.5 text-[11px] font-semibold text-slate-500">start: your claim</p>
+      <p className="sr-only" aria-live="polite">{announce}</p>
     </div>
   );
 }
