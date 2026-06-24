@@ -27,6 +27,21 @@ answers**, growing bottom-up from their claim to their revised conclusion — a
 - New helpers `buildReasoningTree` / `buildWorksheetTree` and a `ReasoningTree`
   component, with unit tests. Frontend 13 tests pass; verified live in the chat.
 
+**Hardening + engagement round** (after a multi-agent bug/UX review):
+- **Bugs fixed:** a stuck reply ("idk") no longer fills/overwrites a node; a later
+  clarification answer no longer overwrites the student's original claim; an
+  unknown/blank move no longer misroutes an answer into the claim; long words now
+  `break-words` instead of overflowing; full answer text is reachable by **tap**
+  (not hover-only) on touch devices; node states no longer rely on colour alone.
+- **More engaging:** a node **pops** when it newly fills; the active dimension
+  shows a gentle pulsing "now" dot; a **"Complete"** celebration when all five
+  fill; a stronger upward spine; a compact **progress chip in the chat header on
+  mobile** (where the tree sits below the chat).
+- **Accessibility:** a polite live-region announces each newly-filled dimension;
+  the tree list has an accessible name; orientation captions meet AA contrast.
+- One source of truth for progress (the tree's filled count drives the header,
+  the tree, and the finish-gate). Frontend 16 tests pass; verified live.
+
 > Model note: production is **verified running GLM-5 (Poe)** (`/health` →
 > `model_mode=poe`), matching the decision to keep GLM-5 primary. The v0.11.0
 > Gemini wiring is merged but **not activated** — no `GEMINI_API_KEY` is set.

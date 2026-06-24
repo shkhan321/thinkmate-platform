@@ -95,6 +95,27 @@ function reasoningSnippet(text: string): string {
   return `${(lastSpace > 12 ? cut.slice(0, lastSpace) : cut).trim()}…`;
 }
 
+const LOW_EFFORT_FILLERS = new Set([
+  "yes", "no", "ok", "okay", "maybe", "hmm", "sure", "nope", "yeah", "idk", "?", "help"
+]);
+const LOW_EFFORT_PHRASES = [
+  "i don't know", "i dont know", "idk", "dont know", "do not know", "not sure",
+  "no idea", "no clue", "help me", "just tell me", "tell me the answer",
+  "give me the answer", "i give up"
+];
+
+// A reply that signals the student is stuck / not really answering. Such a reply
+// must NOT fill a tree node (it would mark a dimension "done" with junk and even
+// overwrite a real earlier answer). Mirrors the backend is_low_effort heuristic.
+export function isLowEffortAnswer(content: string): boolean {
+  const text = content.trim().toLowerCase();
+  if (!text) return true;
+  if (LOW_EFFORT_FILLERS.has(text)) return true;
+  const words = text.split(/\s+/);
+  if (words.length <= 6 && LOW_EFFORT_PHRASES.some((phrase) => text.includes(phrase))) return true;
+  return words.length <= 2 && text.length <= 8;
+}
+
 function treeFromAnswers(answers: Record<string, string>, currentKey: string | null): ReasoningNode[] {
   return TREE_NODES.map((node) => {
     const full = (answers[node.key] || "").trim();
@@ -117,20 +138,31 @@ export function buildReasoningTree(turns: Turn[]): ReasoningNode[] {
   TREE_NODES.forEach((node) => (moveToKey[node.moveType] = node.key));
 
   const answers: Record<string, string> = {};
+  let sawTutor = false;
   let pendingMove: string | null | undefined = null;
   for (const turn of turns) {
     if (turn.role === "tutor") {
+      sawTutor = true;
       pendingMove = turn.move_type;
     } else {
-      const key = (pendingMove && moveToKey[pendingMove]) || "claim";
-      answers[key] = turn.content;
+      // The opening message is the claim; after that, route by the question just
+      // asked. An unknown/blank move maps nowhere (the answer is ignored, not
+      // wrongly dumped into the claim).
+      const key = sawTutor ? (pendingMove ? moveToKey[pendingMove] ?? null : null) : "claim";
+      // A stuck / non-answer ("idk", "not sure") must not fill a node or overwrite
+      // a real earlier answer. And the claim is the foundation: keep the student's
+      // FIRST real claim rather than letting a later clarification reply replace it.
+      if (key && !isLowEffortAnswer(turn.content) && !(key === "claim" && answers.claim)) {
+        answers[key] = turn.content;
+      }
       pendingMove = null;
     }
   }
-  // "current" = the dimension just asked but not yet answered, else the first gap.
-  const currentKey = pendingMove
-    ? moveToKey[pendingMove] ?? null
-    : TREE_NODES.find((node) => !answers[node.key])?.key ?? null;
+  // "current" = the dimension being asked now if it is still unanswered, else the
+  // next gap to fill — so the highlight always points at real remaining work.
+  const pendingKey = pendingMove ? moveToKey[pendingMove] ?? null : null;
+  const firstGap = TREE_NODES.find((node) => !answers[node.key])?.key ?? null;
+  const currentKey = pendingKey && !answers[pendingKey] ? pendingKey : firstGap;
   return treeFromAnswers(answers, currentKey);
 }
 

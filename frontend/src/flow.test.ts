@@ -102,6 +102,44 @@ describe("pilot flow helpers", () => {
     expect(tree.some((node) => node.full.includes("What evidence"))).toBe(false);
   });
 
+  it("never lets a stuck reply fill or overwrite a tree node", () => {
+    const tree = buildReasoningTree([
+      turn("student", "I will use carbon fibre for the arm because it is light and stiff"),
+      turn("tutor", "What exactly is your claim?", "clarification"),
+      turn("student", "idk"),
+      turn("tutor", "What exactly is your claim?", "clarification"),
+      turn("student", "not sure")
+    ]);
+    const byKey = Object.fromEntries(tree.map((node) => [node.key, node]));
+    // The real claim survives; the low-effort replies neither overwrite nor fill it.
+    expect(byKey.claim.full).toContain("carbon fibre");
+    expect(byKey.claim.full).not.toContain("idk");
+    expect(byKey.claim.full).not.toContain("not sure");
+    // Nothing downstream is marked done by the junk replies.
+    expect(tree.filter((node) => node.filled).map((node) => node.key)).toEqual(["claim"]);
+    // The "now" highlight points at the next real gap, not a finished node.
+    expect(tree.find((node) => node.current)?.key).toBe("evidence");
+  });
+
+  it("keeps the original claim even when a later clarification answer is substantive", () => {
+    const tree = buildReasoningTree([
+      turn("student", "Carbon fibre is the best hinge material"),
+      turn("tutor", "What exactly is your claim?", "clarification"),
+      turn("student", "I mean carbon fibre composite rather than aluminium")
+    ]);
+    expect(tree.find((node) => node.key === "claim")?.full).toBe("Carbon fibre is the best hinge material");
+  });
+
+  it("ignores an answer that follows a tutor turn with an unknown move (no misroute to claim)", () => {
+    const tree = buildReasoningTree([
+      turn("student", "Carbon fibre claim"),
+      turn("tutor", "Some odd question", "weird_unknown_move"),
+      turn("student", "this should not become the claim")
+    ]);
+    expect(tree.find((node) => node.key === "claim")?.full).toBe("Carbon fibre claim");
+    expect(tree.filter((node) => node.filled).map((node) => node.key)).toEqual(["claim"]);
+  });
+
   it("builds the same tree shape from the worksheet's saved answers", () => {
     const tree = buildWorksheetTree([
       { step_key: "claim", response: "A diary study fits best" },

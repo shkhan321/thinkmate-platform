@@ -1153,6 +1153,7 @@ function CompletionScreen({
         <div className="tm-card p-5 text-left">
           <ReasoningTree
             nodes={tree}
+            variant="keepsake"
             title="Your reasoning, mapped"
             subtitle="The structure you built, in your own words — yours to keep."
           />
