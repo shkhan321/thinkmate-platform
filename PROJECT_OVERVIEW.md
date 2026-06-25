@@ -359,18 +359,17 @@ Notes:
 
 ## 11. Current version & state
 
-- **Live in production: v0.9.0** — pilot-readiness hardening (deploy config,
-  blinded-export rework, consent withdrawal, security/concurrency/model-robustness,
-  a11y). Verified live.
-- **Built but not yet deployed: v0.10.0** — the **reasoning-state engine**
-  (section 3). It is in the working tree, tested (54 backend tests green), pending
-  an adversarial review and a deploy.
+- **Live in production: v0.14.0** (verified). The deployed line includes:
+  v0.10.0 reasoning-state engine, v0.12.0 reasoning tree, v0.13.0 encouraging
+  tutor tone, and v0.14.0 consent-enforcement + safeguard/collision hardening.
+  Production model: **GLM-5** (Poe); Gemini wiring is present but inactive.
 - Full history is in `CHANGELOG.md` (keep it updated each release).
 
 Known residuals / TODO (intentional, see `CLAUDE_HANDOFF.md`):
 - No per-participant session tokens (login is by name, by design) — endpoints
-  trust client-supplied UUIDs; study IDs are high-entropy and non-enumerable.
-- Safeguard is a broadened blocklist (could become a model-based classifier).
+  trust client-supplied UUIDs; study IDs are high-entropy and non-enumerable. A
+  name+course collision is now mitigated by the "this isn't me" path + an audit log.
+- Safeguard is a (now re-tightened) blocklist (could become a model-based classifier).
 - Balanced randomisation is not fully atomic (self-correcting at pilot scale).
 - A test smoke account named **"Deploy SmokeTest"** exists in the prod DB
   (consent withdrawn, no activity data) — safe to delete before the real pilot.

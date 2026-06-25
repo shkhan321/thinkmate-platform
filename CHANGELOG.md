@@ -9,7 +9,7 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.14.0 — Consent/safeguard hardening from external review *(2026-06-25, built — not yet deployed)*
+## v0.14.0 — Consent/safeguard hardening from external review *(2026-06-26, deployed to production)*
 
 An independent adversarial review found a real ethics gap and a few sharp edges.
 This release fixes them, each with the tests the previous suite was missing.
@@ -106,8 +106,9 @@ automatic alternate** when Gemini is busy or unavailable.
   `GEMINI_BASE_URL`. `/health` reports `model_mode=gemini` when the key is set.
 - **Backward-compatible:** with no Gemini key the app behaves exactly as before
   (Poe only), so deploying this is safe before the key is added.
-- Activated in Railway production with `GEMINI_API_KEY`; `/health` reports
-  `model_mode=gemini` and `model_name=gemini-2.5-flash`.
+- **NOT activated in production.** No `GEMINI_API_KEY` is set, so `/health` reports
+  `model_mode=poe` / `GLM-5` — production runs GLM-5 by the PI's decision. Setting
+  the key in Railway is all it takes to switch to Gemini later.
 
 ## v0.10.0 — Reasoning-state engine *(2026-06-24, deployed to production)*
 
