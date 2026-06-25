@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Feedback, PilotSession, Student, Task, Turn, WorksheetResponse
+from app.services.consent import has_withdrawn
 
 
 def _blinded_artifact_order(sessions: list[PilotSession]) -> list[PilotSession]:
@@ -61,14 +62,20 @@ def build_json_export(db: Session, blinded: bool) -> dict:
         # of short answers and chat artifacts are free-form, so the two arms can
         # still differ in texture. Keying and ordering tells are removed here;
         # the texture difference is a property of the study design itself.
+        # Withdrawn participants are excluded from the blinded scoring set — their
+        # reasoning must not be analysed after they withdraw. The key is taken from
+        # a counter over KEPT artifacts so the exported keys are contiguous.
+        withdrawn = {s.id for s in students_all if has_withdrawn(db, s.id)}
         artifacts = []
-        for index, session in enumerate(_blinded_artifact_order(sessions_all)):
+        for session in _blinded_artifact_order(sessions_all):
+            if session.student_id in withdrawn:
+                continue
             reasoning = _session_reasoning(db, session)
             if not reasoning.strip():
                 continue
             artifacts.append(
                 {
-                    "key": _artifact_key(index),
+                    "key": _artifact_key(len(artifacts)),
                     "course": courses.get(session.student_id),
                     "reasoning": reasoning,
                 }
@@ -156,19 +163,24 @@ def build_csv_export(db: Session, blinded: bool) -> str:
         # keyed per artifact and hash-shuffled so artifacts cannot be paired to a
         # participant or ordered by task/start time. Empty sessions are dropped.
         courses = {student.id: student.course for student in students_all}
+        withdrawn = {s.id for s in students_all if has_withdrawn(db, s.id)}
         writer = csv.DictWriter(output, fieldnames=["artifact_key", "course", "reasoning"])
         writer.writeheader()
-        for index, session in enumerate(_blinded_artifact_order(list(sessions))):
+        kept = 0
+        for session in _blinded_artifact_order(list(sessions)):
+            if session.student_id in withdrawn:
+                continue
             reasoning = _session_reasoning(db, session)
             if not reasoning.strip():
                 continue
             writer.writerow(
                 {
-                    "artifact_key": _artifact_key(index),
+                    "artifact_key": _artifact_key(kept),
                     "course": courses.get(session.student_id, ""),
                     "reasoning": reasoning,
                 }
             )
+            kept += 1
         return output.getvalue()
 
     fieldnames = [

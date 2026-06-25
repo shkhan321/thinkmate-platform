@@ -36,10 +36,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () => request<Health>("/health"),
-  start: (name: string, course: string) =>
+  start: (name: string, course: string, forceNew = false) =>
     request<Student>("/api/auth/start", {
       method: "POST",
-      body: JSON.stringify({ name, course })
+      body: JSON.stringify({ name, course, force_new: forceNew })
     }),
   accessCode: (accessCode: string) =>
     request<Student>("/api/auth/access-code", {

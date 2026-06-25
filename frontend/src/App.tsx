@@ -250,12 +250,12 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     }
   }
 
-  async function handleStart(name: string, course: string) {
+  async function handleStart(name: string, course: string, forceNew = false) {
     if (pending) return;
     setError("");
     setPending(true);
     try {
-      const result = await api.start(name, course);
+      const result = await api.start(name, course, forceNew);
       setStudent(result);
       persist(result);
       await routeEntry(result);
@@ -264,6 +264,13 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     } finally {
       setPending(false);
     }
+  }
+
+  // A different person who shares a name + course can declare "this isn't me" to
+  // get their own record instead of being merged into the existing one.
+  function startFresh() {
+    if (!student) return;
+    void handleStart(student.display_name || "", student.course, true);
   }
 
   async function acceptConsent() {
@@ -418,6 +425,21 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     <div className="space-y-6">
       <h1 className="sr-only">ThinkMate — {stageHeadings[stage] ?? "Student"}</h1>
       <SignedInBar student={student} stage={stage} onSignOut={signOut} />
+      {student?.returning && (stage === "consent" || stage === "project" || stage === "tasks") && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm">
+          <p className="text-slate-700">
+            Welcome back, <span className="font-semibold">{firstName(student.display_name)}</span> — continuing your saved work.
+          </p>
+          <button
+            type="button"
+            className="font-semibold text-brand-700 underline underline-offset-2"
+            onClick={startFresh}
+            disabled={pending}
+          >
+            Not you? Start fresh
+          </button>
+        </div>
+      )}
       {error && stage !== "active" && <Callout>{error}</Callout>}
 
       {stage === "consent" && (

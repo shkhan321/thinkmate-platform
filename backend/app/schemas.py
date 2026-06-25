@@ -16,6 +16,10 @@ class AccessCodeRequest(BaseModel):
 class StartRequest(BaseModel):
     name: str = Field(max_length=120)
     course: str = Field(max_length=40)
+    # When true, never resume an existing name+course record — create a fresh
+    # student. Lets a different person with the same name avoid being merged into
+    # someone else's record (the frontend offers this as "this isn't me").
+    force_new: bool = False
 
 
 class ProjectRequest(BaseModel):
