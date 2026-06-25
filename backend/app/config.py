@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     hf_api_token: str = ""
     hf_model: str = "google/gemma-2-2b-it"
     poe_api_key: str = ""
-    poe_model: str = "GPT-4o-Mini"
+    poe_model: str = "GLM-5"
     poe_base_url: str = "https://api.poe.com/v1"
     admin_password: str = "change-me"
     app_env: str = "development"

@@ -1145,6 +1145,95 @@ def test_consent_withdrawal_is_honored(tmp_path):
     assert again["consent_accepted"] is False
 
 
+def _start_thinkmate(client, name="Withdraw Test", course="engineering"):
+    sid = client.post("/api/auth/start", json={"name": name, "course": course}).json()["student_id"]
+    client.post("/api/project", json={"student_id": sid, "project_title": "P", "project_goal": "G"})
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    return sid, tm, ws
+
+
+def test_withdrawal_stops_every_activity_endpoint(tmp_path):
+    # B1 regression: withdrawal must stop processing mid-activity, not only at the
+    # front-door endpoints. Once a session exists, the gate was missing.
+    client = make_client(tmp_path)
+    sid, tm, ws = _start_thinkmate(client)
+    tm_session = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    ws_session = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+    # works while consented
+    assert client.post("/api/dialogue/turn", json={"session_id": tm_session, "content": "My claim."}).status_code == 200
+
+    client.post("/api/consent", json={"student_id": sid, "accepted": False})  # withdraw
+
+    assert client.post("/api/dialogue/turn", json={"session_id": tm_session, "content": "after"}).status_code == 403
+    assert client.post("/api/dialogue/hint", json={"session_id": tm_session}).status_code == 403
+    assert client.post(f"/api/sessions/{tm_session}/answer", json={"answer": "x"}).status_code == 403
+    assert client.post(f"/api/sessions/{tm_session}/complete").status_code == 403
+    assert client.get(f"/api/sessions/{tm_session}/state").status_code == 403
+    assert client.get(f"/api/sessions/{tm_session}/summary").status_code == 403
+    assert client.post(
+        "/api/worksheet/response",
+        json={"session_id": ws_session, "step_key": "claim", "prompt": "P", "response": "r"},
+    ).status_code == 403
+
+
+def test_consent_version_bump_stops_activity_endpoints(tmp_path):
+    db_url = f"sqlite:///{tmp_path / 'thinkmate_test.db'}"
+    base = dict(database_url=db_url, admin_password="admin-test", app_env="test", hf_api_token="", poe_api_key="")
+    v1 = TestClient(create_app(Settings(consent_version="cv1", **base)))
+    sid, tm, _ = _start_thinkmate(v1, name="Bump")
+    session_id = v1.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    assert v1.post("/api/dialogue/turn", json={"session_id": session_id, "content": "My claim."}).status_code == 200
+
+    # Consent text changes mid-pilot: the in-progress activity must also re-gate.
+    v2 = TestClient(create_app(Settings(consent_version="cv2", **base)))
+    assert v2.post("/api/dialogue/turn", json={"session_id": session_id, "content": "after bump"}).status_code == 403
+
+
+def test_withdrawn_student_is_excluded_from_blinded_export(tmp_path):
+    client = make_client(tmp_path)
+    sid, tm, _ = _start_thinkmate(client, name="Gone")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "My withdrawn reasoning here."})
+    client.post("/api/consent", json={"student_id": sid, "accepted": False})  # withdraw
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    assert all("withdrawn reasoning" not in a["reasoning"] for a in blinded["scoring_artifacts"])
+
+
+def test_hint_is_guarded_against_answer_leak(tmp_path, monkeypatch):
+    client = make_client(tmp_path)
+    sid, tm, _ = _start_thinkmate(client, name="Hint Guard")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "My claim about the material."})
+
+    # Force the hint model to hand over a flat recommendation.
+    monkeypatch.setattr("app.api.dialogue.generate_hint", lambda *a, **k: "The best option is carbon fibre.")
+    hint = client.post("/api/dialogue/hint", json={"session_id": session_id}).json()["hint"]
+    assert "best option" not in hint.lower()  # neutralized to the safe frame
+    assert "___" in hint  # the fill-in-the-blank fallback
+
+
+def test_force_new_avoids_name_collision_merge(tmp_path):
+    client = make_client(tmp_path)
+    first = client.post("/api/auth/start", json={"name": "Sara Ali", "course": "engineering"}).json()
+    # A different person, same name + course, declares "this isn't me".
+    second = client.post(
+        "/api/auth/start", json={"name": "Sara Ali", "course": "engineering", "force_new": True}
+    ).json()
+    assert second["student_id"] != first["student_id"]
+    assert second["returning"] is False
+    # Without force_new, the same name resumes the first (existing behaviour).
+    resumed = client.post("/api/auth/start", json={"name": "Sara Ali", "course": "engineering"}).json()
+    assert resumed["student_id"] == first["student_id"]
+
+
 def test_consent_version_change_forces_reconsent(tmp_path):
     db_url = f"sqlite:///{tmp_path / 'thinkmate_test.db'}"
     base = dict(database_url=db_url, admin_password="admin-test", app_env="test", hf_api_token="", poe_api_key="")
@@ -1182,15 +1271,18 @@ def test_effective_cors_falls_back_to_same_origin_in_production():
 
 
 def test_safeguard_allows_encouragement_but_blocks_a_flat_answer():
-    # ThinkMate may now encourage and gently steer — directional nudges are allowed.
+    # ThinkMate may encourage and gently steer — directional nudges are allowed.
     assert apply_safeguard(
         "Nice — you're on the right track. You could look at fatigue data next; what would you check?"
     ).flagged is False
     assert apply_safeguard("Good thinking. I'd consider the load case — what's the worst case here?").flagged is False
-    # But a flat answer-dump is still blocked.
-    assert apply_safeguard("The answer is carbon fibre.").flagged is True
-    # A plain Socratic question is fine.
     assert apply_safeguard("What is your strongest reason for that?").flagged is False
+    # Flat answer-dumps and flat RECOMMENDATIONS (handing the choice) are blocked (M1).
+    assert apply_safeguard("The answer is carbon fibre.").flagged is True
+    assert apply_safeguard("The best option is carbon fibre. What do you think?").flagged is True
+    assert apply_safeguard("You should choose the carbon-fibre tube for your arm.").flagged is True
+    assert apply_safeguard("I recommend going with carbon fibre here.").flagged is True
+    assert apply_safeguard("Go with the carbon-fibre tube.").flagged is True
 
 
 def test_student_transcript_excludes_tutor_turns():

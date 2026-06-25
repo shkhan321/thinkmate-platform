@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.database import get_app_settings, get_db
 from app.models import PilotSession, Student, Task, Turn, WorksheetResponse
-from app.services.consent import has_active_consent
+from app.services.consent import ensure_session_consent, has_active_consent
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
@@ -89,10 +89,15 @@ def start_session(
 
 
 @router.post("/{session_id}/complete", response_model=CompleteSessionResponse)
-def complete_session(session_id: str, db: Session = Depends(get_db)):
+def complete_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     session = db.get(PilotSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    ensure_session_consent(db, session, settings.consent_version)
     # Idempotent: completing an already-complete session must not overwrite the
     # original completion timestamp (that would corrupt any timing analysis).
     if session.status != "complete":
@@ -103,12 +108,17 @@ def complete_session(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{session_id}/state", response_model=SessionStateResponse)
-def session_state(session_id: str, db: Session = Depends(get_db)):
+def session_state(
+    session_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     """Return a session's saved content so the student can resume exactly where
     they left off — the chat transcript and any worksheet answers."""
     session = db.get(PilotSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    ensure_session_consent(db, session, settings.consent_version)
     turns = db.scalars(
         select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
     ).all()
@@ -127,7 +137,12 @@ def session_state(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{session_id}/answer", response_model=AnswerResponse)
-def save_final_answer(session_id: str, payload: AnswerRequest, db: Session = Depends(get_db)):
+def save_final_answer(
+    session_id: str,
+    payload: AnswerRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     """Store the student's own improved answer at the end of a ThinkMate
     dialogue. This is the point of the tool — the student articulates the
     conclusion themselves, and it becomes a clean reasoning artifact for
@@ -135,6 +150,7 @@ def save_final_answer(session_id: str, payload: AnswerRequest, db: Session = Dep
     session = db.get(PilotSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    ensure_session_consent(db, session, settings.consent_version)
     if session.status == "complete":
         raise HTTPException(status_code=409, detail="This activity is already finished.")
     answer = payload.answer.strip()
@@ -158,6 +174,7 @@ def session_summary(
     session = db.get(PilotSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    ensure_session_consent(db, session, settings.consent_version)
     student = db.get(Student, session.student_id)
 
     if session.condition == "worksheet":

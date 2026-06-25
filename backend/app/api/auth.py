@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -14,6 +16,8 @@ from app.services.routing import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+logger = logging.getLogger("thinkmate")
 
 MAX_NAME_LENGTH = 80
 
@@ -41,15 +45,24 @@ def start(
     if course not in COURSE_PREFIXES:
         raise HTTPException(status_code=422, detail="Please choose your course to continue.")
 
-    existing = db.scalar(
-        select(Student)
-        .where(
-            func.lower(Student.display_name) == name.lower(),
-            Student.course == course,
+    existing = (
+        None
+        if payload.force_new
+        else db.scalar(
+            select(Student)
+            .where(
+                func.lower(Student.display_name) == name.lower(),
+                Student.course == course,
+            )
+            .order_by(Student.created_at)
         )
-        .order_by(Student.created_at)
     )
     if existing is not None:
+        # Two DIFFERENT people who share a name+course would otherwise be merged
+        # into one record (corrupting both artifacts and the blinding). Log it so
+        # the team can audit, and the frontend offers a "this isn't me" path
+        # (force_new) so the second person gets their own record.
+        logger.warning("Returning sign-in resumed an existing record for name+course '%s'/'%s'.", name, course)
         return AccessCodeResponse(
             student_id=existing.id,
             access_code=existing.access_code,

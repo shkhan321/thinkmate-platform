@@ -7,9 +7,10 @@ from app.config import Settings
 from app.database import get_app_settings, get_db
 from app.models import PilotSession, Student, Task, Turn
 from app.schemas import DialogueTurnRequest, DialogueTurnResponse, HintRequest, HintResponse
-from app.services.model_adapter import generate_hint, generate_tutor_turn
+from app.services.consent import ensure_session_consent
+from app.services.model_adapter import HINT_FALLBACK, generate_hint, generate_tutor_turn
 from app.services.reasoning_state import assess_reasoning_state, select_move
-from app.services.safeguard import apply_safeguard
+from app.services.safeguard import apply_safeguard, flags_answer
 from app.services.socratic import is_low_effort
 
 router = APIRouter(prefix="/api/dialogue", tags=["dialogue"])
@@ -29,6 +30,8 @@ def dialogue_turn(
     session = db.get(PilotSession, payload.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    # Withdrawal/stale-consent must stop processing even mid-activity.
+    ensure_session_consent(db, session, settings.consent_version)
     if session.condition != "thinkmate":
         raise HTTPException(status_code=400, detail="This session is assigned to guided worksheet.")
     if session.status == "complete":
@@ -129,6 +132,7 @@ def dialogue_hint(
     session = db.get(PilotSession, payload.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    ensure_session_consent(db, session, settings.consent_version)
     # Research integrity: the guided-worksheet condition is the NON-AI control.
     # It must never reach the model, including via hints.
     if session.condition != "thinkmate":
@@ -154,4 +158,9 @@ def dialogue_hint(
         project_goal=(student.project_goal or "") if student else "",
         last_student_message=last_student.content if last_student else "",
     )
+    # A hint is a fill-in-the-blank frame, never an answer. If the model slips and
+    # hands over a decision, fall back to the safe frame (the tutor turns are
+    # guarded; hints must be too).
+    if flags_answer(hint):
+        hint = HINT_FALLBACK
     return HintResponse(hint=hint)

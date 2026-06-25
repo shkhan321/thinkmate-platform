@@ -2,18 +2,25 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.config import Settings
+from app.database import get_app_settings, get_db
 from app.models import PilotSession, WorksheetResponse
 from app.schemas import WorksheetResponseRequest, WorksheetResponseResponse
+from app.services.consent import ensure_session_consent
 
 router = APIRouter(prefix="/api/worksheet", tags=["worksheet"])
 
 
 @router.post("/response", response_model=WorksheetResponseResponse)
-def worksheet_response(payload: WorksheetResponseRequest, db: Session = Depends(get_db)):
+def worksheet_response(
+    payload: WorksheetResponseRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+):
     session = db.get(PilotSession, payload.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
+    ensure_session_consent(db, session, settings.consent_version)
     if session.condition != "worksheet":
         raise HTTPException(status_code=400, detail="This session is assigned to ThinkMate dialogue.")
     if session.status == "complete":

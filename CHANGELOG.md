@@ -9,7 +9,32 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.13.0 — Encouraging, human tutor tone *(2026-06-24, built — not yet deployed)*
+## v0.14.0 — Consent/safeguard hardening from external review *(2026-06-25, built — not yet deployed)*
+
+An independent adversarial review found a real ethics gap and a few sharp edges.
+This release fixes them, each with the tests the previous suite was missing.
+
+- **BLOCKER — withdrawal now actually stops processing.** Consent was only
+  checked on the entry endpoints; once a session existed, a withdrawn participant
+  could still chat, get hints, save, complete, and get the AI summary. Consent is
+  now enforced on **every** activity endpoint (dialogue turn/hint, answer,
+  complete, state, summary, worksheet response) — a withdrawal or a
+  `CONSENT_VERSION` bump returns 403 mid-activity. Withdrawn participants are also
+  excluded from the blinded scoring export.
+- **Safeguard re-tightened (M1):** it now blocks flat recommendations that hand
+  over the choice ("the best option is…", "you should choose…", "I recommend…",
+  "go with the…"), while still allowing soft steering ("you could look at…").
+- **Hints are now guarded (M2):** a hint that leaks a decision falls back to the
+  safe fill-in-the-blank frame (previously hints bypassed the safeguard).
+- **Name-collision guard (M4):** two different people who share a name + course
+  are no longer silently merged — a "this isn't me — start fresh" option creates
+  a separate record, and a collision is logged for the team to audit.
+- **Model default fixed (m2):** the code default is now `GLM-5` (was
+  `GPT-4o-Mini`), removing a silent-model-swap risk on a misconfigured deploy.
+- Blinded-export keys are now contiguous (n1). Backend 70 tests, frontend 16
+  tests; B1 + M4 verified live.
+
+## v0.13.0 — Encouraging, human tutor tone *(2026-06-25, deployed to production)*
 
 A deliberate pedagogical decision by the PI: ThinkMate should keep students
 moving in the **right direction** and never leave them feeling lost — so the
@@ -30,7 +55,7 @@ only asking neutral questions.
   only the student's own words, so the study's integrity layer is preserved.
 - Backend 65 tests pass; the warm tone is verified live against GLM-5 after deploy.
 
-## v0.12.0 — Reasoning tree *(2026-06-24, built — not yet deployed)*
+## v0.12.0 — Reasoning tree *(2026-06-25, deployed to production)*
 
 The student now **sees their reasoning as a tree built from their own short
 answers**, growing bottom-up from their claim to their revised conclusion — a
