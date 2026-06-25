@@ -23,6 +23,7 @@ export function ThinkMateChat({
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
+  const [slowReply, setSlowReply] = useState(false);
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
   const [hintLoading, setHintLoading] = useState(false);
@@ -59,6 +60,8 @@ export function ThinkMateChat({
     if (!input.trim() || busy) return;
     setBusy(true);
     setError("");
+    setSlowReply(false);
+    const slowTimer = window.setTimeout(() => setSlowReply(true), 15000);
     try {
       const response = await api.dialogueTurn(session.id, input);
       setTurns((current) => [...current, response.student_turn, response.tutor_turn]);
@@ -67,6 +70,8 @@ export function ThinkMateChat({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send your message. Please try again.");
     } finally {
+      window.clearTimeout(slowTimer);
+      setSlowReply(false);
       setBusy(false);
     }
   }
@@ -198,9 +203,9 @@ export function ThinkMateChat({
           ))}
 
           {busy && (
-            <div className="flex items-center gap-2 text-sm text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
               <SparkIcon className="h-4 w-4 animate-pulse text-brand-500" />
-              ThinkMate is thinking&hellip;
+              {slowReply ? "Still thinking — this one's taking a little longer…" : "ThinkMate is thinking…"}
             </div>
           )}
         </div>
@@ -243,9 +248,11 @@ export function ThinkMateChat({
                 }
               }}
               rows={1}
+              maxLength={6000}
+              disabled={busy}
               placeholder="Type your reasoning…"
               aria-label="Type your reasoning"
-              className="tm-input max-h-32 min-h-[3rem] flex-1 resize-none py-3"
+              className="tm-input max-h-32 min-h-[3rem] flex-1 resize-none py-3 disabled:opacity-60"
             />
             <button
               className="tm-btn-primary h-12 w-12 shrink-0 !px-0"
@@ -255,6 +262,9 @@ export function ThinkMateChat({
               <SendIcon className="h-5 w-5" />
             </button>
           </form>
+          {input.length > 5000 && (
+            <p className="mt-1 text-right text-xs text-slate-500">{input.length}/6000 characters</p>
+          )}
         </div>
       </section>
     </div>

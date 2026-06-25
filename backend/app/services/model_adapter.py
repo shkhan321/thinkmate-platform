@@ -310,11 +310,14 @@ def generate_session_summary(
         if text:
             return text
         logger.warning("Summary fell back: chat providers returned nothing.")
-    return (
-        "We could not build your brief automatically this time. "
-        "Look back at your messages above and note your main claim, your best reason, "
-        "and the one question you still need to answer."
-    )
+    return SUMMARY_FALLBACK
+
+
+SUMMARY_FALLBACK = (
+    "We could not build your brief automatically this time. "
+    "Look back at your messages above and note your main claim, your best reason, "
+    "and the one question you still need to answer."
+)
 
 
 ASSESS_SYSTEM_PROMPT = (

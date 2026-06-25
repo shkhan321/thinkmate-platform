@@ -9,6 +9,28 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
+## v0.15.0 — Review polish: caching, latency, mobile, input caps *(2026-06-26, built — not yet deployed)*
+
+The lower-priority items from the external review.
+
+- **AI brief is cached (m3):** generated once and stored on the session
+  (`summary_text`), so reopening the takeaway shows the *same* text and never
+  re-bills the model. A rare fallback (model down) is left unstored to retry.
+- **Latency UX (M3):** a "still thinking — this one's taking a little longer"
+  message after 15 s, and a hard 90 s request timeout so a hung model can't pin
+  the spinner forever (friendly error + retry instead).
+- **Mobile pedagogy tooltips (m6):** the Bloom / Paul-Elder chips are now
+  tap-to-explain (a "what's this?" toggle) instead of hover-only `title`s, so the
+  plain-language meaning is reachable on phones.
+- **Input caps (m4):** chat + worksheet textareas cap at 6000 chars with a live
+  counter, so a long paste gets a friendly limit instead of a raw 422; the chat
+  input is also disabled while a reply is in flight (no lost keystrokes).
+- **Consistency (n5):** the frontend `isLowEffortAnswer` is realigned to match
+  the backend `is_low_effort` exactly (give-up phrases vs short stuck phrases).
+- Blinded-export key counter already made contiguous in v0.14.0. (n4 hook
+  extraction deliberately deferred — cosmetic only.)
+- Backend 71 tests, frontend 16 tests; mobile tooltip verified live.
+
 ## v0.14.0 — Consent/safeguard hardening from external review *(2026-06-26, deployed to production)*
 
 An independent adversarial review found a real ethics gap and a few sharp edges.

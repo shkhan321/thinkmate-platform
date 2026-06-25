@@ -13,14 +13,31 @@ export function resolveApiBase(configuredUrl = import.meta.env.VITE_API_URL): st
 
 const API_BASE = resolveApiBase();
 
+// Hard cap so a hung/slow model can never pin a request forever — the student
+// gets a friendly error and can retry instead of staring at a spinner.
+const REQUEST_TIMEOUT_MS = 90000;
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("That took too long. Please check your connection and try again.");
     }
-  });
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+  }
   if (!response.ok) {
     let message = response.statusText;
     try {

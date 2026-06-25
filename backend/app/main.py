@@ -93,6 +93,7 @@ def ensure_schema_migrations(engine) -> None:
         },
         "sessions": {
             "final_answer": "TEXT",
+            "summary_text": "TEXT",
         },
         "turns": {
             "reasoning_state": "JSON",
