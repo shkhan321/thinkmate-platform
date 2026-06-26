@@ -95,24 +95,28 @@ function reasoningSnippet(text: string): string {
   return `${(lastSpace > 12 ? cut.slice(0, lastSpace) : cut).trim()}…`;
 }
 
+// Kept in lockstep with the backend is_low_effort (socratic.py): same fillers,
+// same give-up phrases (length-independent) and stuck phrases (short messages
+// only). If you change one, change the other.
 const LOW_EFFORT_FILLERS = new Set([
   "yes", "no", "ok", "okay", "maybe", "hmm", "sure", "nope", "yeah", "idk", "?", "help"
 ]);
-const LOW_EFFORT_PHRASES = [
-  "i don't know", "i dont know", "idk", "dont know", "do not know", "not sure",
-  "no idea", "no clue", "help me", "just tell me", "tell me the answer",
-  "give me the answer", "i give up"
+const GIVE_UP_PHRASES = ["just tell me", "tell me the answer", "give me the answer", "i give up"];
+const STUCK_PHRASES = [
+  "i don't know", "i dont know", "idk", "dont know", "do not know", "not sure", "no idea", "no clue", "help me"
 ];
+const STUCK_MAX_WORDS = 6;
 
 // A reply that signals the student is stuck / not really answering. Such a reply
 // must NOT fill a tree node (it would mark a dimension "done" with junk and even
-// overwrite a real earlier answer). Mirrors the backend is_low_effort heuristic.
+// overwrite a real earlier answer).
 export function isLowEffortAnswer(content: string): boolean {
   const text = content.trim().toLowerCase();
   if (!text) return true;
   if (LOW_EFFORT_FILLERS.has(text)) return true;
+  if (GIVE_UP_PHRASES.some((phrase) => text.includes(phrase))) return true;
   const words = text.split(/\s+/);
-  if (words.length <= 6 && LOW_EFFORT_PHRASES.some((phrase) => text.includes(phrase))) return true;
+  if (words.length <= STUCK_MAX_WORDS && STUCK_PHRASES.some((phrase) => text.includes(phrase))) return true;
   return words.length <= 2 && text.length <= 8;
 }
 

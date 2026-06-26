@@ -179,6 +179,7 @@ export function Worksheet({
                 <textarea
                   className="tm-input mt-2 min-h-[5.5rem] resize-y"
                   value={responses[step.key] || ""}
+                  maxLength={6000}
                   onChange={(event) =>
                     setResponses((current) => ({ ...current, [step.key]: event.target.value }))
                   }

@@ -18,7 +18,7 @@ from app.schemas import (
     SessionSummaryResponse,
     StartSessionRequest,
 )
-from app.services.model_adapter import generate_session_summary
+from app.services.model_adapter import SUMMARY_FALLBACK, generate_session_summary
 from app.services.routing import condition_for
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -188,6 +188,11 @@ def session_summary(
         recap = "\n\n".join(f"{row.prompt}\n{row.response}" for row in rows)
         return SessionSummaryResponse(kind="plain", summary=recap, final_answer=session.final_answer)
 
+    # The AI brief is generated once and cached, so reopening the takeaway shows
+    # the same text (a stable keepsake) and doesn't re-bill the model each view.
+    if session.summary_text:
+        return SessionSummaryResponse(kind="ai", summary=session.summary_text, final_answer=session.final_answer)
+
     turns = db.scalars(
         select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
     ).all()
@@ -198,4 +203,9 @@ def session_summary(
         project_goal=(student.project_goal or "") if student else "",
         transcript=transcript,
     )
+    # Persist a real brief; on the rare fallback (model unavailable) leave it
+    # unstored so the next view can try again.
+    if summary != SUMMARY_FALLBACK:
+        session.summary_text = summary
+        db.commit()
     return SessionSummaryResponse(kind="ai", summary=summary, final_answer=session.final_answer)

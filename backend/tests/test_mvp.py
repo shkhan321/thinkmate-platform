@@ -476,6 +476,26 @@ def test_thinkmate_session_summary_is_ai_kind(tmp_path):
     assert len(summary.json()["summary"].strip()) > 0
 
 
+def test_ai_summary_is_generated_once_then_cached(tmp_path, monkeypatch):
+    calls = {"n": 0}
+
+    def fake_summary(*args, **kwargs):
+        calls["n"] += 1
+        return f"Your claim: nylon. (v{calls['n']})"
+
+    monkeypatch.setattr("app.api.sessions.generate_session_summary", fake_summary)
+    client = make_client(tmp_path)
+    sid, tm, _ = _start_thinkmate(client, name="Cache")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "I will use nylon."})
+
+    first = client.get(f"/api/sessions/{session_id}/summary").json()["summary"]
+    second = client.get(f"/api/sessions/{session_id}/summary").json()["summary"]
+    # Generated once and cached — stable keepsake, no second model call.
+    assert first == second == "Your claim: nylon. (v1)"
+    assert calls["n"] == 1
+
+
 def test_worksheet_session_summary_is_plain_recap_no_ai(tmp_path):
     client = make_client(tmp_path)
     student = client.post("/api/auth/start", json={"name": "Dana", "course": "psychology"}).json()

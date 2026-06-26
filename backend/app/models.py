@@ -66,6 +66,9 @@ class PilotSession(Base):
     condition: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(32), default="in_progress")
     final_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The AI thinking brief, generated once and cached so reopening the takeaway
+    # is stable (deterministic keepsake) and does not re-bill the model.
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

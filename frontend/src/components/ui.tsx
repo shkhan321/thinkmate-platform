@@ -72,22 +72,49 @@ export function PedagogyTags({
   bloom?: string | null;
   paulElder?: string | null;
 }) {
+  const [open, setOpen] = useState(false);
   if (!bloom && !paulElder) return null;
   const tone = (bloom && bloomStyles[bloom.toLowerCase()]) || "bg-slate-100 text-slate-600";
+  // Tappable (not hover-only) so the plain-language meaning is reachable on phones.
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {bloom && (
-        <span className={`tm-chip ${tone}`} title={`Thinking skill (Bloom's taxonomy): ${capitalize(bloom)}`}>
-          {capitalize(bloom)}
-        </span>
-      )}
-      {paulElder && (
-        <span
-          className="tm-chip bg-slate-100 text-slate-600"
-          title={`Quality of reasoning (Paul-Elder standards): ${capitalize(paulElder)}`}
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {bloom && (
+          <button type="button" onClick={() => setOpen((v) => !v)} className={`tm-chip ${tone}`} aria-expanded={open}>
+            {capitalize(bloom)}
+          </button>
+        )}
+        {paulElder && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="tm-chip bg-slate-100 text-slate-600"
+            aria-expanded={open}
+          >
+            {capitalize(paulElder)}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-xs text-slate-500 underline underline-offset-2"
         >
-          {capitalize(paulElder)}
-        </span>
+          {open ? "hide" : "what's this?"}
+        </button>
+      </div>
+      {open && (
+        <p className="mt-1 text-xs text-slate-600">
+          {bloom && (
+            <>
+              <span className="font-semibold">{capitalize(bloom)}</span> — the thinking skill (Bloom's taxonomy).{" "}
+            </>
+          )}
+          {paulElder && (
+            <>
+              <span className="font-semibold">{capitalize(paulElder)}</span> — the quality-of-reasoning standard (Paul–Elder).
+            </>
+          )}
+        </p>
       )}
     </div>
   );
