@@ -5,7 +5,7 @@ import io
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Feedback, PilotSession, Student, Task, Turn, WorksheetResponse
+from app.models import Feedback, HintEvent, PilotSession, Student, SusResponse, Task, Turn, WorksheetResponse
 from app.services.consent import has_withdrawn
 
 
@@ -144,12 +144,35 @@ def build_json_export(db: Session, blinded: bool) -> dict:
         {"id": item.id, "student_id": item.student_id, "rating": item.rating, "comment": item.comment}
         for item in db.scalars(select(Feedback).order_by(Feedback.created_at)).all()
     ]
+    # Hint usage and SUS are research-team data (RQ3 usage patterns, the SUS
+    # usability target). They never enter the blinded export.
+    hint_events = [
+        {
+            "id": event.id,
+            "session_id": event.session_id,
+            "question": event.question,
+            "hint": event.hint,
+            "created_at": event.created_at.isoformat() if event.created_at else None,
+        }
+        for event in db.scalars(select(HintEvent).order_by(HintEvent.created_at)).all()
+    ]
+    sus_responses = [
+        {
+            "id": row.id,
+            "student_id": row.student_id,
+            **{f"q{i}": getattr(row, f"q{i}") for i in range(1, 11)},
+            "total": row.total,
+        }
+        for row in db.scalars(select(SusResponse).order_by(SusResponse.created_at)).all()
+    ]
     return {
         "students": students,
         "sessions": sessions,
         "turns": turns,
         "worksheet_responses": worksheet_responses,
         "feedback": feedback,
+        "hint_events": hint_events,
+        "sus_responses": sus_responses,
     }
 
 

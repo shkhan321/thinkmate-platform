@@ -5,15 +5,24 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.database import get_app_settings, get_db
-from app.models import PilotSession, Student, Task, Turn
+from app.models import HintEvent, PilotSession, Student, Task, Turn
 from app.schemas import DialogueTurnRequest, DialogueTurnResponse, HintRequest, HintResponse
 from app.services.consent import ensure_session_consent
 from app.services.model_adapter import HINT_FALLBACK, generate_hint, generate_tutor_turn
 from app.services.reasoning_state import assess_reasoning_state, select_move
 from app.services.safeguard import apply_safeguard, flags_answer
-from app.services.socratic import is_low_effort
+from app.services.socratic import is_give_up, is_low_effort, move_by_type
 
 router = APIRouter(prefix="/api/dialogue", tags=["dialogue"])
+
+# Served (without a model call) once the exchange cap is reached, so a session
+# can't run up unbounded model cost. Ends with a question mark on purpose: it is
+# stored as a tutor turn and must read like the tutor closing the loop.
+CLOSING_MESSAGE = (
+    "What a session — you've been around the full reasoning loop and then some. "
+    "This is the moment to capture it: click Finish & save and write your own answer "
+    "while it's fresh. What will your first sentence be?"
+)
 
 
 def _next_turn_number(db: Session, session_id: str) -> int:
@@ -53,58 +62,84 @@ def dialogue_turn(
         f"{'Student' if turn.role == 'student' else 'ThinkMate'}: {turn.content}" for turn in prior_turns[-6:]
     )
 
+    # Capture everything the model calls need as plain values, then END the read
+    # transaction. The provider chain can take tens of seconds; holding a pooled
+    # DB connection through it starves the pool under classroom load (this is
+    # what let ~15 in-flight turns freeze everyone else's requests).
+    session_id = session.id
+    project_title = (student.project_title or "") if student else ""
+    project_goal = (student.project_goal or "") if student else ""
+    moves_used = [turn.move_type for turn in prior_turns if turn.role == "tutor" and turn.move_type]
+    tutor_turns_so_far = sum(1 for turn in prior_turns if turn.role == "tutor")
+    stuck = is_low_effort(payload.content)
+    gave_up = is_give_up(payload.content)
+    task_title, task_scenario = task.title, task.scenario
+    db.commit()
+
+    if tutor_turns_so_far >= settings.max_exchanges:
+        # Soft cap: close the loop with a canned wrap-up instead of another paid
+        # model call. The student can still finish & save normally.
+        move = move_by_type("reflection")
+        state = None
+        tutor_content, tutor_flagged = CLOSING_MESSAGE, False
+    else:
+        # Reasoning-state engine: assess where the student's reasoning is weakest
+        # and ask about THAT dimension, instead of walking a fixed move order. If
+        # they are stuck, stay on the current point with an easier question. The
+        # assessment is stored on the tutor turn as a per-turn reasoning
+        # trajectory for the research. On a stuck turn we keep the previous move
+        # regardless of the assessment, so skip the (paid) model call and store
+        # the cheap heuristic state instead.
+        state = assess_reasoning_state(
+            settings,
+            project_title=project_title,
+            project_goal=project_goal,
+            history=history,
+            student_content=payload.content,
+            moves_used=moves_used,
+            use_model=not (stuck and bool(moves_used)),
+        )
+        move = select_move(state, moves_used, stuck)
+        raw_content = generate_tutor_turn(
+            settings,
+            task_title,
+            task_scenario,
+            payload.content,
+            move,
+            project_title=project_title,
+            project_goal=project_goal,
+            history=history,
+            stuck=stuck,
+        )
+        safeguarded = apply_safeguard(raw_content, student_gave_up=gave_up)
+        tutor_content, tutor_flagged = safeguarded.content, safeguarded.flagged
+
+    # The model call took seconds — re-check consent and completion before
+    # writing, so a withdrawal or a finish in another tab still wins.
+    ensure_session_consent(db, session, settings.consent_version)
+    fresh_status = db.scalar(select(PilotSession.status).where(PilotSession.id == session_id))
+    if fresh_status == "complete":
+        raise HTTPException(status_code=409, detail="This activity is already finished.")
+
     student_turn = Turn(
-        session_id=session.id,
-        turn_number=_next_turn_number(db, session.id),
+        session_id=session_id,
+        turn_number=_next_turn_number(db, session_id),
         role="student",
         content=payload.content,
         safeguard_flag=False,
     )
     db.add(student_turn)
     db.flush()
-
-    # Reasoning-state engine: assess where the student's reasoning is weakest and
-    # ask about THAT dimension, instead of walking a fixed move order. If they are
-    # stuck, stay on the current point with an easier question. The assessment is
-    # stored on the tutor turn as a per-turn reasoning trajectory for the research.
-    project_title = (student.project_title or "") if student else ""
-    project_goal = (student.project_goal or "") if student else ""
-    moves_used = [turn.move_type for turn in prior_turns if turn.role == "tutor" and turn.move_type]
-    stuck = is_low_effort(payload.content)
-    # On a stuck turn we keep the previous move regardless of the assessment, so
-    # skip the (paid) model call and store the cheap heuristic state instead.
-    state = assess_reasoning_state(
-        settings,
-        project_title=project_title,
-        project_goal=project_goal,
-        history=history,
-        student_content=payload.content,
-        moves_used=moves_used,
-        use_model=not (stuck and bool(moves_used)),
-    )
-    move = select_move(state, moves_used, stuck)
-    raw_content = generate_tutor_turn(
-        settings,
-        task.title,
-        task.scenario,
-        payload.content,
-        move,
-        project_title=project_title,
-        project_goal=project_goal,
-        history=history,
-        stuck=stuck,
-    )
-    safeguarded = apply_safeguard(raw_content)
     tutor_turn = Turn(
-        session_id=session.id,
-        turn_number=_next_turn_number(db, session.id),
+        session_id=session_id,
+        turn_number=_next_turn_number(db, session_id),
         role="tutor",
-        content=safeguarded.content,
+        content=tutor_content,
         move_type=move["move_type"],
         paul_elder_target=move["paul_elder_target"],
         bloom_level=move["bloom_level"],
         reasoning_state=state,
-        safeguard_flag=safeguarded.flagged,
+        safeguard_flag=tutor_flagged,
     )
     db.add(tutor_turn)
     try:
@@ -151,16 +186,28 @@ def dialogue_hint(
     )
     question = last_tutor.content if last_tutor else "What is your main claim about your project, and why?"
 
+    # Release the read transaction before the (slow) model call — same pool
+    # rationale as dialogue_turn.
+    session_id = session.id
+    project_title = (student.project_title or "") if student else ""
+    project_goal = (student.project_goal or "") if student else ""
+    last_student_message = last_student.content if last_student else ""
+    db.commit()
+
     hint = generate_hint(
         settings,
         question=question,
-        project_title=(student.project_title or "") if student else "",
-        project_goal=(student.project_goal or "") if student else "",
-        last_student_message=last_student.content if last_student else "",
+        project_title=project_title,
+        project_goal=project_goal,
+        last_student_message=last_student_message,
     )
     # A hint is a fill-in-the-blank frame, never an answer. If the model slips and
     # hands over a decision, fall back to the safe frame (the tutor turns are
     # guarded; hints must be too).
     if flags_answer(hint):
         hint = HINT_FALLBACK
+    # Log the event: hint usage is research data (RQ3 usage patterns — who needed
+    # help, how often, on which question). Never shown to raters.
+    db.add(HintEvent(session_id=session_id, question=question, hint=hint))
+    db.commit()
     return HintResponse(hint=hint)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SUS_ITEMS,
   buildReasoningTree,
   buildWorksheetTree,
   canSubmitWorksheet,
@@ -7,8 +8,10 @@ import {
   courseLabel,
   coveredReasoning,
   firstName,
+  isLowEffortAnswer,
   modelModeLabel,
   studentProgress,
+  susTotal,
   taskActionLabel,
   tourSteps
 } from "./flow";
@@ -149,5 +152,23 @@ describe("pilot flow helpers", () => {
     expect(byKey.claim.filled).toBe(true);
     expect(byKey.revise.filled).toBe(true);
     expect(byKey.evidence.filled).toBe(false);
+  });
+
+  it("recognises Arabic stuck and give-up phrases as low effort (backend lockstep)", () => {
+    expect(isLowEffortAnswer("لا أعرف")).toBe(true);
+    expect(isLowEffortAnswer("ساعدني")).toBe(true);
+    expect(isLowEffortAnswer("أعطني الجواب")).toBe(true);
+    // A substantive Arabic answer must not be flagged as stuck.
+    expect(isLowEffortAnswer("لقد اخترت المفصل الفولاذي لأن التحميل الدوري يسبب الكلال في المفصل المرن")).toBe(false);
+  });
+
+  it("scores the SUS with the standard 0-100 formula (backend lockstep)", () => {
+    expect(SUS_ITEMS).toHaveLength(10);
+    // Best possible: odd items 5, even items 1.
+    expect(susTotal([5, 1, 5, 1, 5, 1, 5, 1, 5, 1])).toBe(100);
+    // All neutral 3s land exactly in the middle.
+    expect(susTotal([3, 3, 3, 3, 3, 3, 3, 3, 3, 3])).toBe(50);
+    // Worst possible: odd items 1, even items 5.
+    expect(susTotal([1, 5, 1, 5, 1, 5, 1, 5, 1, 5])).toBe(0);
   });
 });

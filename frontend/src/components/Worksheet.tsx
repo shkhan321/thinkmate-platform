@@ -195,8 +195,9 @@ export function Worksheet({
         </div>
 
         <button className="tm-btn-primary mt-6 w-full sm:w-auto" disabled={!ready || busy} onClick={submit}>
-          {busy ? "Submitting…" : "Submit worksheet"}
+          {busy ? "Saving…" : "Save answers & continue"}
         </button>
+        <p className="mt-2 text-xs text-slate-500">One more step after this: writing your answer in your own words.</p>
       </section>
     </div>
   );

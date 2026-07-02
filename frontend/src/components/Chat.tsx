@@ -28,6 +28,12 @@ export function ThinkMateChat({
   const [hint, setHint] = useState("");
   const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // On touch keyboards Enter should insert a newline (multi-sentence answers
+  // are the norm); Enter-to-send stays a desktop convenience.
+  const coarsePointer =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
 
   const exchanges = Math.ceil(turns.length / 2);
   // One source of truth for progress: the reasoning tree. A dimension counts as
@@ -76,9 +82,15 @@ export function ThinkMateChat({
     }
   }
 
+  // Finish unlocks at 3 of 5 real answers (the worksheet requires all its
+  // boxes, so the chat must demand comparable substance); below 5 we still
+  // nudge once toward completing the loop.
+  const canFinish = treeDone >= 3;
+
   function handleFinish() {
+    if (!canFinish) return;
     if (
-      treeDone < 3 &&
+      treeDone < tree.length &&
       !window.confirm(
         `You've worked through ${treeDone} of ${tree.length} thinking steps. ` +
           "A bit more discussion usually makes a stronger answer. Finish anyway?"
@@ -146,14 +158,16 @@ export function ThinkMateChat({
           className={`mt-4 w-full ${allStepsCovered ? "tm-btn-primary" : "tm-btn-ghost"}`}
           type="button"
           onClick={handleFinish}
-          disabled={exchanges === 0 || busy}
+          disabled={!canFinish || busy}
         >
           Finish &amp; save
         </button>
         <p className="mt-3 text-center text-xs text-slate-500">
           {exchanges === 0
             ? "Send at least one message to begin"
-            : `${exchanges} exchange${exchanges === 1 ? "" : "s"} so far`}
+            : !canFinish
+              ? `Answer ${3 - treeDone} more thinking step${3 - treeDone === 1 ? "" : "s"} to finish (${treeDone}/${tree.length} so far)`
+              : `${exchanges} exchange${exchanges === 1 ? "" : "s"} so far`}
         </p>
       </aside>
 
@@ -242,7 +256,7 @@ export function ThinkMateChat({
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && !coarsePointer) {
                   event.preventDefault();
                   void sendTurn(event);
                 }

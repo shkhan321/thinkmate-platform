@@ -63,10 +63,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ access_code: accessCode })
     }),
-  consent: (studentId: string) =>
+  consent: (studentId: string, accepted = true) =>
     request<{ accepted: boolean; consent_version: string }>("/api/consent", {
       method: "POST",
-      body: JSON.stringify({ student_id: studentId, accepted: true })
+      body: JSON.stringify({ student_id: studentId, accepted })
     }),
   saveProject: (studentId: string, projectTitle: string, projectGoal: string) =>
     request<{ student_id: string; project_title: string; project_goal: string }>("/api/project", {
@@ -105,6 +105,14 @@ export const api = {
     request<{ id: string; rating: number }>("/api/feedback", {
       method: "POST",
       body: JSON.stringify({ student_id: studentId, rating, comment })
+    }),
+  submitSus: (studentId: string, answers: number[]) =>
+    request<{ id: string; total: number }>("/api/sus", {
+      method: "POST",
+      body: JSON.stringify({
+        student_id: studentId,
+        ...Object.fromEntries(answers.map((value, index) => [`q${index + 1}`, value]))
+      })
     }),
   dialogueTurn: (sessionId: string, content: string) =>
     request<{ student_turn: Turn; tutor_turn: Turn }>("/api/dialogue/turn", {

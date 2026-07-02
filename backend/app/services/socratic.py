@@ -42,18 +42,24 @@ def move_by_type(move_type: str) -> dict:
 
 # Explicit "give me the answer / I give up" appeals. These signal low effort
 # regardless of message length — a student writing a paragraph that ends in
-# "just tell me the answer" is still asking to be handed it.
+# "just tell me the answer" is still asking to be handed it. Includes the
+# common Arabic phrasings (UAEU students slip into Arabic naturally).
 _GIVE_UP_PHRASES = (
     "just tell me",
     "tell me the answer",
     "give me the answer",
     "i give up",
+    "أعطني الجواب",
+    "اعطني الجواب",
+    "قل لي الجواب",
+    "ما هو الجواب",
 )
 
 # Generic "I'm stuck" signals. These only count as low effort when the WHOLE
 # message is short — otherwise a substantive answer that merely contains the
 # words (e.g. "this will help me decide between two materials") is wrongly
 # flagged as stuck, which would stall the tutor on the same reasoning step.
+# Includes common Arabic equivalents of "I don't know / help me".
 _STUCK_PHRASES = (
     "i don't know",
     "i dont know",
@@ -64,11 +70,26 @@ _STUCK_PHRASES = (
     "no idea",
     "no clue",
     "help me",
+    "لا أعرف",
+    "لا اعرف",
+    "ما أدري",
+    "ما ادري",
+    "مش عارف",
+    "ساعدني",
 )
 _SHORT_FILLERS = {"yes", "no", "ok", "okay", "maybe", "hmm", "sure", "nope", "yeah", "idk", "?", "help"}
 
 # A "short" message for the purpose of the stuck-phrase check.
 _STUCK_MAX_WORDS = 6
+
+
+def is_give_up(content: str) -> bool:
+    """True when the student is explicitly asking to be handed the answer
+    ("just tell me the answer") rather than merely being stuck. Callers use
+    this to pick a fallback that addresses the request head-on instead of a
+    generic 'you're on the right track' line."""
+    text = content.strip().lower()
+    return bool(text) and any(phrase in text for phrase in _GIVE_UP_PHRASES)
 
 
 def is_low_effort(content: str) -> bool:
@@ -78,7 +99,7 @@ def is_low_effort(content: str) -> bool:
         return True
     if text in _SHORT_FILLERS:
         return True
-    if any(phrase in text for phrase in _GIVE_UP_PHRASES):
+    if is_give_up(text):
         return True
     words = text.split()
     if len(words) <= _STUCK_MAX_WORDS and any(phrase in text for phrase in _STUCK_PHRASES):
