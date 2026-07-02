@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
-from app.api import admin, auth, consent, dialogue, feedback, project, sessions, tasks, worksheet
+from app.api import admin, auth, consent, dialogue, feedback, project, sessions, sus, tasks, worksheet
 from app.config import Settings, get_settings
 from app.database import Base, make_engine, make_session_factory
 from app.seed import parse_pilot_access_codes, seed_database
@@ -23,12 +23,19 @@ DEFAULT_ADMIN_PASSWORDS = {"", "change-me", "change-this-before-deploying"}
 def create_app(settings: Settings | None = None) -> FastAPI:
     active_settings = settings or get_settings()
     validate_settings(active_settings)
-    app = FastAPI(title="ThinkMate Pilot API", version="0.1.0")
+    is_production = active_settings.app_env.lower() == "production"
+    # No public API docs in production: /docs and /openapi.json advertise the
+    # whole endpoint surface (including the admin routes) to curious students.
+    docs_kwargs = {"docs_url": None, "redoc_url": None, "openapi_url": None} if is_production else {}
+    app = FastAPI(title="ThinkMate Pilot API", version="0.1.0", **docs_kwargs)
     app.state.settings = active_settings
     app.state.engine = make_engine(active_settings.database_url)
     app.state.SessionLocal = make_session_factory(app.state.engine)
     app.state.admin_rate_limiter = SlidingWindowRateLimiter(
         max_requests=active_settings.admin_rate_limit_per_minute, window_seconds=60.0
+    )
+    app.state.auth_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=active_settings.auth_rate_limit_per_minute, window_seconds=60.0
     )
 
     Base.metadata.create_all(app.state.engine)
@@ -57,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dialogue.router)
     app.include_router(worksheet.router)
     app.include_router(feedback.router)
+    app.include_router(sus.router)
     app.include_router(admin.router)
 
     @app.get("/health")

@@ -52,6 +52,14 @@ SAFE_FALLBACK = (
     "What evidence or assumption would you look at next?"
 )
 
+# When the student explicitly asked to be handed the answer and the model's
+# reply leaked one, "you're on the right track" reads oddly — this fallback
+# addresses the request directly and offers a small next step instead.
+GIVE_UP_FALLBACK = (
+    "I can't hand you the answer — helping you build your own is the whole point. "
+    "Let's make it easy: what is one reason behind your current thinking?"
+)
+
 
 @dataclass(frozen=True)
 class SafeguardResult:
@@ -69,9 +77,10 @@ def flags_answer(content: str) -> bool:
     return len(content) > MAX_TUTOR_CHARS
 
 
-def apply_safeguard(content: str) -> SafeguardResult:
+def apply_safeguard(content: str, student_gave_up: bool = False) -> SafeguardResult:
     if flags_answer(content):
-        return SafeguardResult(content=SAFE_FALLBACK, flagged=True)
+        replacement = GIVE_UP_FALLBACK if student_gave_up else SAFE_FALLBACK
+        return SafeguardResult(content=replacement, flagged=True)
     if "?" not in content:
         return SafeguardResult(content=f"{content.rstrip()} What reasoning supports that?", flagged=False)
     return SafeguardResult(content=content, flagged=False)

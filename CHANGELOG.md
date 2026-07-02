@@ -9,7 +9,69 @@ mattered. Newest first. **Keep this file updated as the platform evolves.**
 
 ---
 
-## v0.15.0 — Review polish: caching, latency, mobile, input caps *(2026-06-26, built — not yet deployed)*
+## v0.16.0 — Study-integrity fixes from the independent review *(2026-07-02, not yet deployed)*
+
+Implements the platform-side fixes from the 2026-07-02 independent review
+(`THINKMATE_INDEPENDENT_REVIEW_2026-07-02.md` in the proposal folder). The
+theme: make the two conditions produce **comparable, complete artifacts** and
+make fidelity **measurable**, before the pilot pre-registration.
+
+- **W1 — Symmetric mandatory final answer.** Both conditions now end at the
+  same wrap-up ("Now, write your answer") and the skip button is gone — the
+  final answer is the primary artifact raters score blind, so its format must
+  not differ by condition and must always exist. The worksheet flows into the
+  wrap-up after its five boxes ("Save answers & continue"); the chat's finish
+  button hard-unlocks only at ≥3 of 5 filled reasoning steps (soft nudge below
+  5), comparable substance to the worksheet's all-boxes rule.
+- **W2 — Task order enforced.** Activity 2 is locked (UI: "Unlocks after
+  Activity 1"; backend: 409) until Activity 1 is complete — the A/B sequence is
+  defined over task order, so free ordering silently swapped a student's
+  assigned condition sequence. `ENFORCE_TASK_ORDER` (default true); the legacy
+  test client disables it because tests pick tasks by condition.
+- **W3 — Leakage audit tool.** New `GET /api/admin/leakage-audit?n=…`
+  (password-gated): an LLM judge classifies a random sample of tutor turns as
+  leak / steer / clean — the semantic-leak class the runtime blocklist cannot
+  see (live-demonstrated in the review). For the pre-registered two-tier
+  fidelity metric; results to be human-verified.
+- **P4 — SUS survey.** The 10-item System Usability Scale (the proposal's
+  promised ≥68 target) appears once, after the student's final activity;
+  scored server-side (standard 0–100), one row per student (upsert), in the
+  full export only. Verified live end-to-end (total computed correctly).
+- **W4 — Hints are logged** (`hint_events` table: question + hint per serve) —
+  RQ3 usage-pattern data; full export only, never blinded/raters.
+- **W5 — Withdraw-from-study UI.** A visible "Withdraw from study" action
+  (signed-in bar, shown once consented) records `accepted=false` and signs out;
+  sign-out only happens after the withdrawal is stored.
+- **W6 — Sign in with saved-work code.** "Have a saved-work code? Use it here"
+  on the sign-in card (uses the existing `/api/auth/access-code`); consent-page
+  copy now points at the code as the sure resume path — closes the
+  name-collision data-loss hole ("this isn't me" people could never resume).
+- **W7 — API docs hidden in production** (`/docs`, `/redoc`, `/openapi.json`).
+- **W8 — DB connections no longer pinned through model calls.** Dialogue, hint
+  and summary endpoints commit the read transaction before calling the model
+  and re-check consent/completion before writing; Postgres pool sized for a
+  classroom burst (10 + 30 overflow, pre-ping, recycle).
+- **W9 — Worksheet steps are server-authoritative.** Unknown `step_key` → 422;
+  the stored prompt text comes from the task definition, not the client.
+- **W10 — Cost/abuse ceilings.** Soft per-session exchange cap (`MAX_EXCHANGES`,
+  default 15) closes with a canned wrap-up instead of another model call;
+  sign-in endpoints rate-limited per IP (`AUTH_RATE_LIMIT_PER_MINUTE`, default
+  30 — generous for a lab class behind one NAT).
+- **W11 — Arabic-aware.** The tutor now acknowledges non-English messages and
+  explains the pilot runs in English (system prompt); Arabic "I don't know /
+  help me / give me the answer" phrases count as stuck/give-up in both backend
+  and frontend (kept in lockstep).
+- **W12 — Give-up fallback.** When the student asked to be handed the answer
+  and the model's reply leaked one, the replacement now addresses the request
+  ("I can't hand you the answer — …") instead of "you're on the right track".
+- **W13/W14/W15 — Polish.** Shared-device sign-out prompt on the final
+  completion screen; feedback upserts one row per student (latest rating wins);
+  Enter inserts a newline on touch keyboards (send button sends).
+- Backend 85 tests (14 new), frontend 18 tests (2 new), build clean; full
+  student journey (both conditions, lock, wrap-ups, SUS, code sign-in)
+  verified in a local browser preview against a throwaway DB.
+
+## v0.15.0 — Review polish: caching, latency, mobile, input caps *(2026-06-26, deployed to production)*
 
 The lower-priority items from the external review.
 

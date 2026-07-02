@@ -172,3 +172,25 @@ class FeedbackRequest(BaseModel):
 class FeedbackResponse(BaseModel):
     id: str
     rating: int
+
+
+class SusRequest(BaseModel):
+    """The 10 System Usability Scale items, each answered 1 (strongly disagree)
+    to 5 (strongly agree). Collected once per student, after the second activity."""
+
+    student_id: str = Field(max_length=ID_MAX)
+    q1: int = Field(ge=1, le=5)
+    q2: int = Field(ge=1, le=5)
+    q3: int = Field(ge=1, le=5)
+    q4: int = Field(ge=1, le=5)
+    q5: int = Field(ge=1, le=5)
+    q6: int = Field(ge=1, le=5)
+    q7: int = Field(ge=1, le=5)
+    q8: int = Field(ge=1, le=5)
+    q9: int = Field(ge=1, le=5)
+    q10: int = Field(ge=1, le=5)
+
+
+class SusResponseModel(BaseModel):
+    id: str
+    total: float

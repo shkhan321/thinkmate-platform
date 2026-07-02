@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -62,6 +62,29 @@ def start_session(
     )
     if existing is not None:
         return existing
+
+    # Crossover integrity: the A/B sequence is defined over task ORDER, so doing
+    # Activity 2 first would silently swap the student's assigned condition
+    # sequence. New sessions for a later task require the earlier ones complete.
+    # (Reuse above comes first so any pre-guard session keeps working.)
+    if settings.enforce_task_order and task.task_number > 1:
+        earlier_task_ids = db.scalars(
+            select(Task.id).where(Task.course == task.course, Task.task_number < task.task_number)
+        ).all()
+        completed_earlier = db.scalar(
+            select(func.count())
+            .select_from(PilotSession)
+            .where(
+                PilotSession.student_id == student.id,
+                PilotSession.task_id.in_(earlier_task_ids),
+                PilotSession.status == "complete",
+            )
+        ) if earlier_task_ids else 0
+        if (completed_earlier or 0) < len(earlier_task_ids):
+            raise HTTPException(
+                status_code=409,
+                detail="Please complete Activity 1 first — the activities build on each other in order.",
+            )
 
     session = PilotSession(
         student_id=student.id,
@@ -197,10 +220,15 @@ def session_summary(
         select(Turn).where(Turn.session_id == session.id).order_by(Turn.turn_number)
     ).all()
     transcript = student_transcript(turns, session.final_answer)
+    project_title = (student.project_title or "") if student else ""
+    project_goal = (student.project_goal or "") if student else ""
+    # Release the read transaction before the (slow) model call so the pooled
+    # DB connection isn't pinned for the duration — same rationale as dialogue.
+    db.commit()
     summary = generate_session_summary(
         settings,
-        project_title=(student.project_title or "") if student else "",
-        project_goal=(student.project_goal or "") if student else "",
+        project_title=project_title,
+        project_goal=project_goal,
         transcript=transcript,
     )
     # Persist a real brief; on the rare fallback (model unavailable) leave it

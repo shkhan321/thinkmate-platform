@@ -97,13 +97,17 @@ function reasoningSnippet(text: string): string {
 
 // Kept in lockstep with the backend is_low_effort (socratic.py): same fillers,
 // same give-up phrases (length-independent) and stuck phrases (short messages
-// only). If you change one, change the other.
+// only, incl. common Arabic equivalents). If you change one, change the other.
 const LOW_EFFORT_FILLERS = new Set([
   "yes", "no", "ok", "okay", "maybe", "hmm", "sure", "nope", "yeah", "idk", "?", "help"
 ]);
-const GIVE_UP_PHRASES = ["just tell me", "tell me the answer", "give me the answer", "i give up"];
+const GIVE_UP_PHRASES = [
+  "just tell me", "tell me the answer", "give me the answer", "i give up",
+  "أعطني الجواب", "اعطني الجواب", "قل لي الجواب", "ما هو الجواب"
+];
 const STUCK_PHRASES = [
-  "i don't know", "i dont know", "idk", "dont know", "do not know", "not sure", "no idea", "no clue", "help me"
+  "i don't know", "i dont know", "idk", "dont know", "do not know", "not sure", "no idea", "no clue", "help me",
+  "لا أعرف", "لا اعرف", "ما أدري", "ما ادري", "مش عارف", "ساعدني"
 ];
 const STUCK_MAX_WORDS = 6;
 
@@ -233,6 +237,31 @@ export function conditionTitle(condition: Condition): string {
 
 export function canSubmitWorksheet(stepKeys: string[], responses: Record<string, string>): boolean {
   return stepKeys.every((key) => (responses[key] || "").trim().length > 0);
+}
+
+// The 10 System Usability Scale items (Brooke, 1996), with "the system"
+// rendered as "ThinkMate". Answered 1 (strongly disagree) - 5 (strongly agree),
+// once per student after the second activity. Order matters: odd items are
+// positive, even items negative — the standard SUS alternation.
+export const SUS_ITEMS: string[] = [
+  "I think I would like to use ThinkMate frequently",
+  "I found ThinkMate unnecessarily complex",
+  "I thought ThinkMate was easy to use",
+  "I think I would need support from another person to use ThinkMate",
+  "I found the different parts of ThinkMate well connected",
+  "I thought there was too much inconsistency in ThinkMate",
+  "I imagine most students would learn to use ThinkMate very quickly",
+  "I found ThinkMate awkward to use",
+  "I felt confident using ThinkMate",
+  "I needed to learn a lot of things before I could get going with ThinkMate"
+];
+
+// Standard SUS scoring, mirrored from the backend (sus.py): odd items score
+// (answer - 1), even items (5 - answer); the sum × 2.5 gives 0-100.
+export function susTotal(answers: number[]): number {
+  const odd = [0, 2, 4, 6, 8].reduce((sum, index) => sum + (answers[index] - 1), 0);
+  const even = [1, 3, 5, 7, 9].reduce((sum, index) => sum + (5 - answers[index]), 0);
+  return (odd + even) * 2.5;
 }
 
 export function modelModeLabel(mode: ModelMode): string {

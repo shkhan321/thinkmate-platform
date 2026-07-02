@@ -32,7 +32,17 @@ def make_engine(database_url: str):
     url = normalize_database_url(database_url)
     is_sqlite = url.startswith("sqlite")
     connect_args = {"check_same_thread": False} if is_sqlite else {}
-    engine = create_engine(url, connect_args=connect_args, future=True)
+    # Postgres pool sized for a classroom burst: request threads hold a
+    # connection while a dialogue turn runs, so the SQLAlchemy default
+    # (5 + 10 overflow) starves at ~40 concurrent students. pre_ping recovers
+    # connections the hosted Postgres dropped while idle.
+    engine_kwargs = {} if is_sqlite else {
+        "pool_size": 10,
+        "max_overflow": 30,
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+    }
+    engine = create_engine(url, connect_args=connect_args, future=True, **engine_kwargs)
     if is_sqlite:
         event.listen(engine, "connect", _configure_sqlite)
     return engine

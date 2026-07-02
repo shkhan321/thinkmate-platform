@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -18,7 +19,10 @@ def submit_feedback(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_app_settings),
 ):
-    """A simple end-of-session rating (1-5) plus an optional comment."""
+    """A simple end-of-session rating (1-5) plus an optional comment. One row
+    per student: the client's one-time gate is only a localStorage flag, so a
+    re-submit from another device updates the rating instead of duplicating it
+    (the analysis wants latest-per-student)."""
     student = db.get(Student, payload.student_id)
     if student is None:
         raise HTTPException(status_code=404, detail="Student not found.")
@@ -28,6 +32,16 @@ def submit_feedback(
         raise HTTPException(status_code=422, detail="Rating must be between 1 and 5.")
 
     comment = (payload.comment or "").strip()[:MAX_COMMENT] or None
+    existing = db.scalar(
+        select(Feedback).where(Feedback.student_id == student.id).order_by(Feedback.created_at)
+    )
+    if existing is not None:
+        existing.rating = payload.rating
+        existing.comment = comment
+        db.commit()
+        db.refresh(existing)
+        return FeedbackResponse(id=existing.id, rating=existing.rating)
+
     feedback = Feedback(student_id=student.id, rating=payload.rating, comment=comment)
     db.add(feedback)
     db.commit()

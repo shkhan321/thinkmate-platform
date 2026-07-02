@@ -5,7 +5,7 @@
 > interface, where it is deployed, and how to run/test/ship it. No secrets are
 > included — only the names of the variables that hold them.
 
-Last updated: 2026-06-24.
+Last updated: 2026-07-02.
 
 ---
 
@@ -207,10 +207,12 @@ themselves); the consent check uses the latest decision and the current
 | GET | `/api/sessions/{id}/summary` | — | Takeaway: AI "thinking brief" (chat) or plain recap (worksheet) |
 | POST | `/api/dialogue/turn` | `{session_id, content}` | One tutor exchange **(ThinkMate sessions only)** |
 | POST | `/api/dialogue/hint` | `{session_id}` | Optional fill-in-the-blank starter **(ThinkMate only)** |
-| POST | `/api/worksheet/response` | `{session_id, step_key, prompt, response}` | Save a worksheet step **(worksheet only)**; upserts |
-| POST | `/api/feedback` | `{student_id, rating, comment?}` | 1–5 rating + optional comment |
+| POST | `/api/worksheet/response` | `{session_id, step_key, prompt, response}` | Save a worksheet step **(worksheet only)**; upserts; step_key validated, prompt server-authoritative |
+| POST | `/api/feedback` | `{student_id, rating, comment?}` | 1–5 rating + optional comment (one row per student; upserts) |
+| POST | `/api/sus` | `{student_id, q1..q10}` | 10-item SUS (once, after the final activity); scored server-side, upserts |
 | GET | `/api/admin/summary` | header `X-Admin-Password` | Row counts |
 | GET | `/api/admin/export` | `?format=json\|csv&blinded=bool` + header | Research export (rate-limited) |
+| GET | `/api/admin/leakage-audit` | `?n=1..50` + header | LLM-judge fidelity audit of sampled tutor turns (leak/steer/clean); needs a configured model |
 | GET | `/health` | — | Status, db, model mode/name |
 | GET | `/{path}` | — | SPA fallback (serves the React app) |
 
@@ -226,7 +228,9 @@ themselves); the consent check uses the latest decision and the current
   `move_type`, `paul_elder_target`, `bloom_level`, `reasoning_state` (JSON,
   tutor-side), `safeguard_flag`. Unique on `(session_id, turn_number)`.
 - **WorksheetResponse** — `session_id`, `step_key`, `prompt`, `response` (upsert per step).
-- **Feedback** — `student_id`, `rating`, `comment`.
+- **Feedback** — `student_id`, `rating`, `comment` (one row per student).
+- **HintEvent** — `session_id`, `question`, `hint` (one row per hint served; RQ3 usage data).
+- **SusResponse** — `student_id` (unique), `q1..q10`, `total` (standard 0–100 SUS score).
 
 ---
 
@@ -239,30 +243,40 @@ plus a hidden **admin** view at URL hash `#admin`.
 1. **Landing / Sign in** — branded hero, a "Why not just ChatGPT?" panel, and a
    form: **type your name + pick your course** (Engineering or Psychology). No
    password. A "Quick tour" dialog is available. Returning students resume by
-   name + course.
+   name + course, or by their **saved-work code** ("Have a saved-work code? Use
+   it here") — the sure path when two people share a name.
 2. **Consent** — short notice (discloses external-AI processing, that the name
    isn't sent to the model, and the right to withdraw); Agree / "I'd rather not
-   take part".
+   take part". After consenting, a **"Withdraw from study"** action is always
+   available in the signed-in bar (records the withdrawal, then signs out).
 3. **Project intake** — title + one or two lines on what they want to do. Every
    tutor question is anchored to this. Returning students skip it.
 4. **Activities (tasks)** — two project-anchored reasoning lenses:
    *"Justify a key decision in your project"* and *"Stress-test your project"*.
    Each card shows its style and Done / In-progress / Continue state.
+   **Activity 2 is locked until Activity 1 is complete** (UI + backend) — the
+   crossover sequence is defined over task order.
 5. **Active activity** — one of two conditions:
    - **ThinkMate chat** (`Chat.tsx`): a chat with the tutor; a live **reasoning
      tree** (`ReasoningTree`) builds bottom-up from the student's own short
      answers (claim → … → revise), showing progress in their own words; an
-     optional "Stuck? see a suggested reply" hint; pedagogy chips (Bloom +
-     Paul-Elder) with tooltips. Finish is gated until ≥1 exchange. The same tree
-     is shown as a keepsake on completion (worksheet too, from its saved answers).
+     optional "Stuck? see a suggested reply" hint (each serve is logged as a
+     `HintEvent`); pedagogy chips (Bloom + Paul-Elder) with tooltips. Finish
+     unlocks at **≥3 of 5** filled reasoning steps (soft nudge below 5). The
+     same tree is shown as a keepsake on completion (worksheet too, from its
+     saved answers).
    - **Guided worksheet** (`Worksheet.tsx`): five fixed boxes (claim, evidence,
      assumption, counter-view, reflection) with example starters. **No AI** — this
      is the control condition; it never calls the model.
-6. **Wrap-up** (ThinkMate only) — the student writes their **own** improved
-   answer (saved as a clean scored artifact); skippable.
+6. **Wrap-up (both conditions, mandatory)** — the student writes their **own**
+   final answer in the same format regardless of condition. This is the primary
+   blinded-scoring artifact, so it must always exist and must not reveal which
+   activity produced it.
 7. **Completion** — a **takeaway**: for chat, an AI "thinking brief" of the
    student's *own* reasoning to reuse in their capstone; for the worksheet, a
-   plain non-AI recap. Copy + Download. Then a one-time 1–5 star feedback prompt.
+   plain non-AI recap. Copy + Download. Then a one-time 1–5 star feedback
+   prompt; after the **final** activity, the one-time **10-item SUS survey**
+   and a shared-device sign-out prompt.
 8. **Review my work** — reopen a finished activity read-only.
 
 Cross-cutting UX: mobile-first, content-before-sidebar on phones, solid sticky
@@ -314,6 +328,9 @@ secrets.**
 | `SEED_DEMO_STUDENTS` | `false` in production (startup fails if true) |
 | `PILOT_ACCESS_CODES` | `CODE:course:sequence;…` — use codes that do **not** embed A/B |
 | `CORS_ORIGINS` | app URL ideally; `*`/empty in prod safely degrades to same-origin |
+| `AUTH_RATE_LIMIT_PER_MINUTE` | default 30 — per-IP sign-in limit (keep generous: labs share one NAT) |
+| `ENFORCE_TASK_ORDER` | default `true` — Activity 2 requires Activity 1 complete (crossover integrity) |
+| `MAX_EXCHANGES` | default 15 — soft per-session cap; past it the tutor closes with a canned wrap-up |
 | `POE_API_KEY` | secret |
 | `POE_MODEL` | `GLM-5` |
 | `POE_BASE_URL` | `https://api.poe.com/v1` |
@@ -359,10 +376,12 @@ Notes:
 
 ## 11. Current version & state
 
-- **Live in production: v0.14.0** (verified). The deployed line includes:
-  v0.10.0 reasoning-state engine, v0.12.0 reasoning tree, v0.13.0 encouraging
-  tutor tone, and v0.14.0 consent-enforcement + safeguard/collision hardening.
-  Production model: **GLM-5** (Poe); Gemini wiring is present but inactive.
+- **Live in production: v0.15.0.** Local head: **v0.16.0 (study-integrity
+  fixes from the 2026-07 independent review — symmetric mandatory final answer,
+  task-order lock, SUS survey, hint logging, withdraw UI, code sign-in, docs
+  off in prod, pool/transaction fix, leakage-audit endpoint) — built and
+  tested, not yet deployed.** Production model: **GLM-5** (Poe); Gemini wiring
+  is present but inactive.
 - Full history is in `CHANGELOG.md` (keep it updated each release).
 
 Known residuals / TODO (intentional, see `CLAUDE_HANDOFF.md`):

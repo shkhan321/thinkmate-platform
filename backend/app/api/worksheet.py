@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.database import get_app_settings, get_db
-from app.models import PilotSession, WorksheetResponse
+from app.models import PilotSession, Task, WorksheetResponse
 from app.schemas import WorksheetResponseRequest, WorksheetResponseResponse
 from app.services.consent import ensure_session_consent
 
@@ -26,6 +26,16 @@ def worksheet_response(
     if session.status == "complete":
         raise HTTPException(status_code=409, detail="This worksheet is already submitted.")
 
+    # The task's step definitions are authoritative: an unknown step_key would
+    # pollute the research export, and the stored prompt must be the prompt the
+    # step actually shows — not whatever text a client chose to send.
+    task = db.get(Task, session.task_id)
+    steps_by_key = {step.get("key"): step for step in (task.worksheet_steps or [])} if task else {}
+    step = steps_by_key.get(payload.step_key)
+    if step is None:
+        raise HTTPException(status_code=422, detail="Unknown worksheet step.")
+    prompt_text = step.get("prompt") or payload.prompt
+
     # Upsert by (session, step) so resubmitting updates the answer instead of
     # appending a duplicate row.
     existing = db.scalar(
@@ -35,7 +45,7 @@ def worksheet_response(
         )
     )
     if existing is not None:
-        existing.prompt = payload.prompt
+        existing.prompt = prompt_text
         existing.response = payload.response
         db.commit()
         db.refresh(existing)
@@ -44,7 +54,7 @@ def worksheet_response(
     response = WorksheetResponse(
         session_id=session.id,
         step_key=payload.step_key,
-        prompt=payload.prompt,
+        prompt=prompt_text,
         response=payload.response,
     )
     db.add(response)

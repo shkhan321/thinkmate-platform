@@ -21,16 +21,22 @@ def test_settings_ignore_frontend_only_env_keys(tmp_path):
     assert settings.admin_password == "admin-test"
 
 
-def make_client(tmp_path):
-    settings = Settings(
+def make_client(tmp_path, **overrides):
+    settings_kwargs = dict(
         database_url=f"sqlite:///{tmp_path / 'thinkmate_test.db'}",
         admin_password="admin-test",
         app_env="test",
         hf_api_token="",
         poe_api_key="",
         consent_version="test-consent-v1",
+        # Most tests pick a task by CONDITION, and the A/B sequence is random —
+        # so with the task-order guard on they would flakily need Activity 1
+        # done first. The guard defaults ON in real settings and has its own
+        # dedicated tests below.
+        enforce_task_order=False,
     )
-    return TestClient(create_app(settings))
+    settings_kwargs.update(overrides)
+    return TestClient(create_app(Settings(**settings_kwargs)))
 
 
 def _db_sequence(tmp_path, student_id):
@@ -955,6 +961,7 @@ def test_reasoning_assessment_drives_the_move_and_is_stored(tmp_path, monkeypatc
         poe_api_key="test-poe-key",
         poe_model="GPT-4o-Mini",
         consent_version="test-consent-v1",
+        enforce_task_order=False,  # test picks a task by condition (random sequence)
     )
     client = TestClient(create_app(settings))
     student = client.post("/api/auth/start", json={"name": "Reema", "course": "engineering"}).json()
@@ -1062,6 +1069,7 @@ def test_worksheet_session_never_triggers_a_model_call(tmp_path, monkeypatch):
         app_env="test",
         poe_api_key="test-poe-key",
         consent_version="test-consent-v1",
+        enforce_task_order=False,  # test picks a task by condition (random sequence)
     )
     client = TestClient(create_app(settings))
     sid = client.post("/api/auth/start", json={"name": "Wadima", "course": "engineering"}).json()["student_id"]
@@ -1103,6 +1111,7 @@ def test_live_tutor_advances_across_turns_when_a_dimension_stays_weak(tmp_path, 
         poe_api_key="test-poe-key",
         poe_model="GPT-4o-Mini",
         consent_version="test-consent-v1",
+        enforce_task_order=False,  # test picks a task by condition (random sequence)
     )
     client = TestClient(create_app(settings))
     sid = client.post("/api/auth/start", json={"name": "Salma", "course": "engineering"}).json()["student_id"]
@@ -1201,7 +1210,14 @@ def test_withdrawal_stops_every_activity_endpoint(tmp_path):
 
 def test_consent_version_bump_stops_activity_endpoints(tmp_path):
     db_url = f"sqlite:///{tmp_path / 'thinkmate_test.db'}"
-    base = dict(database_url=db_url, admin_password="admin-test", app_env="test", hf_api_token="", poe_api_key="")
+    base = dict(
+        database_url=db_url,
+        admin_password="admin-test",
+        app_env="test",
+        hf_api_token="",
+        poe_api_key="",
+        enforce_task_order=False,  # tests pick a task by condition (random sequence)
+    )
     v1 = TestClient(create_app(Settings(consent_version="cv1", **base)))
     sid, tm, _ = _start_thinkmate(v1, name="Bump")
     session_id = v1.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
@@ -1256,7 +1272,14 @@ def test_force_new_avoids_name_collision_merge(tmp_path):
 
 def test_consent_version_change_forces_reconsent(tmp_path):
     db_url = f"sqlite:///{tmp_path / 'thinkmate_test.db'}"
-    base = dict(database_url=db_url, admin_password="admin-test", app_env="test", hf_api_token="", poe_api_key="")
+    base = dict(
+        database_url=db_url,
+        admin_password="admin-test",
+        app_env="test",
+        hf_api_token="",
+        poe_api_key="",
+        enforce_task_order=False,  # tests pick a task by condition (random sequence)
+    )
 
     v1 = TestClient(create_app(Settings(consent_version="consent-v1", **base)))
     student = v1.post("/api/auth/start", json={"name": "Khalid", "course": "engineering"}).json()
@@ -1464,3 +1487,228 @@ def test_worksheet_response_and_exports(tmp_path):
     assert csv_export.status_code == 200
     rows = list(csv.DictReader(io.StringIO(csv_export.text)))
     assert rows[0]["course"] == "engineering"
+
+
+# ---------------------------------------------------------------------------
+# v0.16.0 — fixes from the 2026-07 independent review
+# ---------------------------------------------------------------------------
+
+
+def _consented_student(client, name="Noor", course="engineering"):
+    """Sign in, consent, and save a project — the common preamble of a ready
+    participant."""
+    student = client.post("/api/auth/start", json={"name": name, "course": course}).json()
+    sid = student["student_id"]
+    client.post("/api/consent", json={"student_id": sid, "accepted": True})
+    client.post(
+        "/api/project",
+        json={"student_id": sid, "project_title": "Test project", "project_goal": "decide a method"},
+    )
+    return sid
+
+
+def _full_export(client):
+    return client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "false"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+
+
+def test_task_order_guard_defaults_on():
+    # The crossover sequence is defined over task order; production must enforce it.
+    assert Settings(_env_file=None).enforce_task_order is True
+
+
+def test_task_order_is_enforced_when_enabled(tmp_path):
+    client = make_client(tmp_path, enforce_task_order=True)
+    sid = _consented_student(client)
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    assert [task["task_number"] for task in tasks] == [1, 2]
+
+    blocked = client.post("/api/sessions", json={"student_id": sid, "task_id": tasks[1]["id"]})
+    assert blocked.status_code == 409
+    assert "Activity 1" in blocked.json()["detail"]
+
+    first = client.post("/api/sessions", json={"student_id": sid, "task_id": tasks[0]["id"]})
+    assert first.status_code == 200
+    assert client.post(f"/api/sessions/{first.json()['id']}/complete").status_code == 200
+
+    second = client.post("/api/sessions", json={"student_id": sid, "task_id": tasks[1]["id"]})
+    assert second.status_code == 200
+
+
+def test_docs_are_hidden_in_production(tmp_path):
+    prod = TestClient(
+        create_app(
+            Settings(
+                database_url=f"sqlite:///{tmp_path / 'prod_docs.db'}",
+                admin_password="strong-prod-password",
+                app_env="production",
+                seed_demo_students=False,
+                hf_api_token="",
+                poe_api_key="",
+            )
+        )
+    )
+    # With docs disabled the route either 404s or falls through to the SPA —
+    # either way no Swagger UI and no OpenAPI schema are served.
+    docs = prod.get("/docs")
+    assert docs.status_code == 404 or "swagger" not in docs.text.lower()
+    schema = prod.get("/openapi.json")
+    assert schema.status_code == 404 or '"openapi"' not in schema.text[:200]
+
+    dev = make_client(tmp_path)
+    assert "swagger" in dev.get("/docs").text.lower()
+
+
+def test_dialogue_turn_cap_serves_canned_closing(tmp_path):
+    from app.api.dialogue import CLOSING_MESSAGE
+
+    client = make_client(tmp_path, max_exchanges=2)
+    sid = _consented_student(client, name="Capped")
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+
+    for message in ("My claim is X because Y.", "The evidence is Z from my tests."):
+        response = client.post("/api/dialogue/turn", json={"session_id": session_id, "content": message})
+        assert response.status_code == 200
+        assert response.json()["tutor_turn"]["content"] != CLOSING_MESSAGE
+
+    capped = client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "One more thought here."})
+    assert capped.status_code == 200
+    assert capped.json()["tutor_turn"]["content"] == CLOSING_MESSAGE
+    assert capped.json()["tutor_turn"]["move_type"] == "reflection"
+
+
+def test_hint_usage_is_logged_for_research(tmp_path):
+    client = make_client(tmp_path)
+    sid = _consented_student(client, name="Hinted")
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    tm = next(t for t in tasks if t["condition"] == "thinkmate")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": tm["id"]}).json()["id"]
+    client.post("/api/dialogue/turn", json={"session_id": session_id, "content": "My claim is X."})
+
+    assert client.post("/api/dialogue/hint", json={"session_id": session_id}).status_code == 200
+
+    exported = _full_export(client)
+    assert len(exported["hint_events"]) == 1
+    assert exported["hint_events"][0]["session_id"] == session_id
+    assert exported["hint_events"][0]["question"]
+
+    blinded = client.get(
+        "/api/admin/export",
+        params={"format": "json", "blinded": "true"},
+        headers={"X-Admin-Password": "admin-test"},
+    ).json()
+    assert "hint_events" not in blinded
+
+
+def test_sus_scores_and_upserts_one_row_per_student(tmp_path):
+    client = make_client(tmp_path)
+    sid = _consented_student(client, name="Susan")
+
+    best = {f"q{i}": (5 if i % 2 == 1 else 1) for i in range(1, 11)}
+    first = client.post("/api/sus", json={"student_id": sid, **best})
+    assert first.status_code == 200
+    assert first.json()["total"] == 100.0
+
+    neutral = {f"q{i}": 3 for i in range(1, 11)}
+    second = client.post("/api/sus", json={"student_id": sid, **neutral})
+    assert second.status_code == 200
+    assert second.json()["total"] == 50.0
+
+    exported = _full_export(client)
+    assert len(exported["sus_responses"]) == 1
+    assert exported["sus_responses"][0]["total"] == 50.0
+
+
+def test_sus_requires_consent_and_valid_answers(tmp_path):
+    client = make_client(tmp_path)
+    unconsented = client.post("/api/auth/start", json={"name": "NoConsent", "course": "engineering"}).json()
+    neutral = {f"q{i}": 3 for i in range(1, 11)}
+    assert client.post("/api/sus", json={"student_id": unconsented["student_id"], **neutral}).status_code == 403
+
+    sid = _consented_student(client, name="RangeCheck")
+    out_of_range = {**neutral, "q1": 9}
+    assert client.post("/api/sus", json={"student_id": sid, **out_of_range}).status_code == 422
+
+
+def test_feedback_upserts_latest_rating_per_student(tmp_path):
+    client = make_client(tmp_path)
+    sid = _consented_student(client, name="Rater")
+    client.post("/api/feedback", json={"student_id": sid, "rating": 4, "comment": "ok"})
+    client.post("/api/feedback", json={"student_id": sid, "rating": 5, "comment": "better"})
+
+    exported = _full_export(client)
+    ratings = [row for row in exported["feedback"] if row["student_id"] == sid]
+    assert len(ratings) == 1
+    assert ratings[0]["rating"] == 5
+    assert ratings[0]["comment"] == "better"
+
+
+def test_worksheet_rejects_unknown_step_and_stores_canonical_prompt(tmp_path):
+    client = make_client(tmp_path)
+    sid = _consented_student(client, name="Steps", course="psychology")
+    tasks = client.get("/api/tasks", params={"student_id": sid}).json()["tasks"]
+    ws = next(t for t in tasks if t["condition"] == "worksheet")
+    session_id = client.post("/api/sessions", json={"student_id": sid, "task_id": ws["id"]}).json()["id"]
+
+    bogus = client.post(
+        "/api/worksheet/response",
+        json={"session_id": session_id, "step_key": "bogus", "prompt": "x", "response": "y"},
+    )
+    assert bogus.status_code == 422
+
+    saved = client.post(
+        "/api/worksheet/response",
+        json={"session_id": session_id, "step_key": "claim", "prompt": "client-invented prompt", "response": "My answer."},
+    )
+    assert saved.status_code == 200
+
+    exported = _full_export(client)
+    assert exported["worksheet_responses"][0]["prompt"] == "State your main claim or decision about your project."
+
+
+def test_auth_signin_is_rate_limited(tmp_path):
+    client = make_client(tmp_path, auth_rate_limit_per_minute=3)
+    for index in range(3):
+        response = client.post("/api/auth/start", json={"name": f"Student {index}", "course": "engineering"})
+        assert response.status_code == 200
+    limited = client.post("/api/auth/start", json={"name": "Student 3", "course": "engineering"})
+    assert limited.status_code == 429
+
+
+def test_give_up_gets_a_dedicated_fallback():
+    from app.services.safeguard import GIVE_UP_FALLBACK, SAFE_FALLBACK
+
+    leaked = "The answer is the steel hinge."
+    assert apply_safeguard(leaked).content == SAFE_FALLBACK
+    replaced = apply_safeguard(leaked, student_gave_up=True)
+    assert replaced.flagged is True
+    assert replaced.content == GIVE_UP_FALLBACK
+
+
+def test_give_up_and_arabic_stuck_detection():
+    from app.services.socratic import is_give_up, is_low_effort
+
+    assert is_give_up("Just tell me the answer") is True
+    assert is_give_up("أعطني الجواب") is True
+    assert is_give_up("I think fatigue matters most here") is False
+    assert is_low_effort("لا أعرف") is True
+    assert is_low_effort("ساعدني") is True
+    assert is_low_effort("لقد اخترت المفصل الفولاذي لأن التحميل الدوري يسبب الكلال في المفصل المرن") is False
+
+
+def test_leakage_audit_needs_a_model(tmp_path):
+    client = make_client(tmp_path)  # demo mode: no chat provider configured
+    response = client.get("/api/admin/leakage-audit", headers={"X-Admin-Password": "admin-test"})
+    assert response.status_code == 503
+
+
+def test_admin_summary_counts_new_research_tables(tmp_path):
+    client = make_client(tmp_path)
+    summary = client.get("/api/admin/summary", headers={"X-Admin-Password": "admin-test"}).json()
+    for key in ("hint_events", "sus_responses", "feedback"):
+        assert key in summary

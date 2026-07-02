@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,18 @@ def _normalise_name(raw_name: str) -> str:
     return " ".join(raw_name.split())
 
 
-@router.post("/start", response_model=AccessCodeResponse)
+def limit_auth_attempts(request: Request) -> None:
+    """Per-IP sliding-window limit on the sign-in endpoints. Slows junk-account
+    creation on /start and brute-forcing of study codes on /access-code. The
+    limit is generous (configurable) because a whole lab class can sit behind
+    one campus NAT and sign in within the same minute."""
+    limiter = getattr(request.app.state, "auth_rate_limiter", None)
+    if limiter is not None:
+        client = request.client.host if request.client else "unknown"
+        limiter.hit(f"auth:{client}")
+
+
+@router.post("/start", response_model=AccessCodeResponse, dependencies=[Depends(limit_auth_attempts)])
 def start(
     payload: StartRequest,
     db: Session = Depends(get_db),
@@ -93,7 +104,7 @@ def start(
     )
 
 
-@router.post("/access-code", response_model=AccessCodeResponse)
+@router.post("/access-code", response_model=AccessCodeResponse, dependencies=[Depends(limit_auth_attempts)])
 def access_code(
     payload: AccessCodeRequest,
     db: Session = Depends(get_db),

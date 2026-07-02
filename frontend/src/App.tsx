@@ -21,6 +21,7 @@ import { ThinkMateChat } from "./components/Chat";
 import { Worksheet } from "./components/Worksheet";
 import { AdminPanel } from "./components/Admin";
 import { ProjectIntake } from "./components/ProjectIntake";
+import { SusSurvey } from "./components/Sus";
 import { Callout, QuickTour, ReasoningTree, Stepper, Wordmark } from "./components/ui";
 import {
   ArrowLeftIcon,
@@ -266,6 +267,45 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     }
   }
 
+  // Sign in with the saved-work code shown at consent time. This is the
+  // recovery path for students who share a name + course with someone else —
+  // the name lookup would resume the OTHER person's record.
+  async function handleCodeStart(code: string) {
+    if (pending) return;
+    setError("");
+    setPending(true);
+    try {
+      const result = await api.accessCode(code);
+      setStudent(result);
+      persist(result);
+      await routeEntry(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "We couldn't find that code. Please check it and try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  // Formal consent withdrawal (backend honours the latest decision and drops
+  // withdrawn participants from analysis). Sign-out only happens once the
+  // withdrawal is actually recorded.
+  async function withdrawFromStudy() {
+    if (!student || pending) return;
+    const confirmed = window.confirm(
+      "Withdraw from the study?\n\nYour saved work will no longer be used for the research, and this session will end. You can rejoin any time by signing in and agreeing again."
+    );
+    if (!confirmed) return;
+    setPending(true);
+    try {
+      await api.consent(student.student_id, false);
+      signOut();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record your withdrawal. Please try again or contact the team.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   // A different person who shares a name + course can declare "this isn't me" to
   // get their own record instead of being merged into the existing one.
   function startFresh() {
@@ -326,34 +366,13 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
     }
   }
 
-  // Worksheet finishes straight away (its reflection box is the student's answer).
-  // A ThinkMate chat goes to a wrap-up step where the student writes their own
-  // improved answer before finishing.
-  async function finishSession() {
+  // BOTH conditions end with the same wrap-up: the student writes their own
+  // final answer. Symmetric on purpose — the final answer is the primary
+  // artifact the raters score blind, so its format must not differ by condition.
+  function finishSession() {
     if (!session) return;
-    if (session.condition === "thinkmate") {
-      setError("");
-      setStage("wrapup");
-      return;
-    }
-    await completeAndReturn();
-  }
-
-  async function completeAndReturn() {
-    if (!session || pending) return;
     setError("");
-    setPending(true);
-    try {
-      await api.completeSession(session.id);
-      setStage("complete");
-      // A task-list refresh failure must NOT block (or undo) a completion that
-      // already succeeded, nor leave the student able to re-submit.
-      if (student) await loadTasks(student.student_id).catch(() => undefined);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save your work. Please try again.");
-    } finally {
-      setPending(false);
-    }
+    setStage("wrapup");
   }
 
   async function finalizeWithAnswer(answer: string) {
@@ -364,16 +383,14 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
       await api.saveAnswer(session.id, answer);
       await api.completeSession(session.id);
       setStage("complete");
+      // A task-list refresh failure must NOT block (or undo) a completion that
+      // already succeeded, nor leave the student able to re-submit.
       if (student) await loadTasks(student.student_id).catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your answer. Please try again.");
     } finally {
       setPending(false);
     }
-  }
-
-  function finalizeSkip() {
-    void completeAndReturn();
   }
 
   function reviewTask(task: PilotTask) {
@@ -408,7 +425,15 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   }
 
   if (stage === "login") {
-    return <SignIn onStart={handleStart} onOpenTour={onOpenTour} error={error} pending={pending} />;
+    return (
+      <SignIn
+        onStart={handleStart}
+        onCodeStart={handleCodeStart}
+        onOpenTour={onOpenTour}
+        error={error}
+        pending={pending}
+      />
+    );
   }
 
   const stageHeadings: Record<string, string> = {
@@ -424,7 +449,7 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
   return (
     <div className="space-y-6">
       <h1 className="sr-only">ThinkMate — {stageHeadings[stage] ?? "Student"}</h1>
-      <SignedInBar student={student} stage={stage} onSignOut={signOut} />
+      <SignedInBar student={student} stage={stage} onSignOut={signOut} onWithdraw={withdrawFromStudy} />
       {student?.returning && (stage === "consent" || stage === "project" || stage === "tasks") && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm">
           <p className="text-slate-700">
@@ -494,10 +519,20 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
         />
       )}
       {stage === "wrapup" && (
-        <WrapUp onSave={finalizeWithAnswer} onSkip={finalizeSkip} pending={pending} error={error} />
+        <WrapUp
+          condition={session?.condition ?? "thinkmate"}
+          onSave={finalizeWithAnswer}
+          pending={pending}
+          error={error}
+        />
       )}
       {stage === "complete" && (
-        <CompletionScreen session={session} tasks={tasks} onReturn={() => setStage("tasks")} />
+        <CompletionScreen
+          session={session}
+          tasks={tasks}
+          onReturn={() => setStage("tasks")}
+          onSignOut={signOut}
+        />
       )}
       {stage === "review" && <ReviewScreen sessionId={reviewSessionId} onBack={backToActivities} />}
     </div>
@@ -507,11 +542,13 @@ function StudentExperience({ onOpenTour }: { onOpenTour: () => void }) {
 function SignedInBar({
   student,
   stage,
-  onSignOut
+  onSignOut,
+  onWithdraw
 }: {
   student: Student | null;
   stage: StudentStage;
   onSignOut: () => void;
+  onWithdraw: () => void;
 }) {
   if (!student) return null;
   const steps = studentProgress(stage);
@@ -538,9 +575,20 @@ function SignedInBar({
         <div className="hidden sm:block">
           <Stepper stage={stage} />
         </div>
-        <button type="button" className="tm-btn-ghost shrink-0" onClick={onSignOut}>
-          Sign out
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <button type="button" className="tm-btn-ghost" onClick={onSignOut}>
+            Sign out
+          </button>
+          {student.consent_accepted && (
+            <button
+              type="button"
+              className="text-[11px] font-semibold text-slate-400 underline-offset-2 hover:text-red-600 hover:underline"
+              onClick={onWithdraw}
+            >
+              Withdraw from study
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -548,22 +596,31 @@ function SignedInBar({
 
 function SignIn({
   onStart,
+  onCodeStart,
   onOpenTour,
   error,
   pending
 }: {
   onStart: (name: string, course: string) => void;
+  onCodeStart: (code: string) => void;
   onOpenTour: () => void;
   error: string;
   pending: boolean;
 }) {
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
+  const [byCode, setByCode] = useState(false);
+  const [code, setCode] = useState("");
   const courseRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const ready = name.trim().length > 0 && course.length > 0;
+  const codeReady = code.trim().length > 0;
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (byCode) {
+      if (codeReady) onCodeStart(code.trim());
+      return;
+    }
     if (ready) onStart(name, course);
   }
 
@@ -626,7 +683,9 @@ function SignIn({
       <section className="order-1 lg:order-2">
         <form className="tm-card p-6 sm:p-8" onSubmit={submit}>
           <h2 className="text-xl font-extrabold text-slate-900">Let&rsquo;s get started</h2>
-          <p className="mt-1 text-sm text-slate-600">Sign in with your name to begin.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {byCode ? "Sign in with your saved-work code." : "Sign in with your name to begin."}
+          </p>
 
           {error && (
             <div className="mt-4">
@@ -634,66 +693,98 @@ function SignIn({
             </div>
           )}
 
-          <label htmlFor="student-name" className="mt-5 block text-sm font-semibold text-slate-700">
-            Your name
-          </label>
-          <input
-            id="student-name"
-            className="tm-input mt-1.5"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="e.g. Aisha Khalifa"
-            autoComplete="name"
-            maxLength={80}
-          />
+          {byCode ? (
+            <>
+              <label htmlFor="student-code" className="mt-5 block text-sm font-semibold text-slate-700">
+                Your saved-work code
+              </label>
+              <input
+                id="student-code"
+                className="tm-input mt-1.5 uppercase tracking-wide"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                placeholder="e.g. ENG-7F3A2C8D1E"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={20}
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                It was shown when you agreed to take part (it also sits under your name while you work).
+              </p>
+            </>
+          ) : (
+            <>
+              <label htmlFor="student-name" className="mt-5 block text-sm font-semibold text-slate-700">
+                Your name
+              </label>
+              <input
+                id="student-name"
+                className="tm-input mt-1.5"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. Aisha Khalifa"
+                autoComplete="name"
+                maxLength={80}
+              />
 
-          <p id="course-label" className="mt-5 text-sm font-semibold text-slate-700">Your course</p>
-          <div role="radiogroup" aria-labelledby="course-label" className="mt-1.5 grid gap-2.5 sm:grid-cols-2">
-            {COURSES.map((item, index) => {
-              const selected = course === item.value;
-              // Roving tabindex: only the selected option (or the first, when
-              // none is selected yet) is in the tab order; arrows move the rest.
-              const tabIndex = course ? (selected ? 0 : -1) : index === 0 ? 0 : -1;
-              return (
-                <button
-                  type="button"
-                  key={item.value}
-                  ref={(element) => {
-                    courseRefs.current[index] = element;
-                  }}
-                  onClick={() => setCourse(item.value)}
-                  onKeyDown={(event) => handleCourseKey(event, index)}
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={tabIndex}
-                  className={`rounded-2xl border p-4 text-left transition ${
-                    selected
-                      ? "border-brand-500 bg-brand-50 ring-2 ring-brand-200"
-                      : "border-slate-200 bg-white hover:border-brand-300"
-                  }`}
-                >
-                  <span className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900">{item.label}</span>
-                    {selected && <CheckIcon className="h-4 w-4 text-brand-600" />}
-                  </span>
-                  <span className="mt-0.5 block text-xs font-semibold text-brand-600">{item.code}</span>
-                  <span className="mt-1 block text-xs text-slate-500">{item.blurb}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            ThinkMate is currently running for these two pilot courses. More may be added later.
-          </p>
+              <p id="course-label" className="mt-5 text-sm font-semibold text-slate-700">Your course</p>
+              <div role="radiogroup" aria-labelledby="course-label" className="mt-1.5 grid gap-2.5 sm:grid-cols-2">
+                {COURSES.map((item, index) => {
+                  const selected = course === item.value;
+                  // Roving tabindex: only the selected option (or the first, when
+                  // none is selected yet) is in the tab order; arrows move the rest.
+                  const tabIndex = course ? (selected ? 0 : -1) : index === 0 ? 0 : -1;
+                  return (
+                    <button
+                      type="button"
+                      key={item.value}
+                      ref={(element) => {
+                        courseRefs.current[index] = element;
+                      }}
+                      onClick={() => setCourse(item.value)}
+                      onKeyDown={(event) => handleCourseKey(event, index)}
+                      role="radio"
+                      aria-checked={selected}
+                      tabIndex={tabIndex}
+                      className={`rounded-2xl border p-4 text-left transition ${
+                        selected
+                          ? "border-brand-500 bg-brand-50 ring-2 ring-brand-200"
+                          : "border-slate-200 bg-white hover:border-brand-300"
+                      }`}
+                    >
+                      <span className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900">{item.label}</span>
+                        {selected && <CheckIcon className="h-4 w-4 text-brand-600" />}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-semibold text-brand-600">{item.code}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{item.blurb}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                ThinkMate is currently running for these two pilot courses. More may be added later.
+              </p>
+            </>
+          )}
 
-          <button className="tm-btn-primary mt-6 w-full" disabled={!ready || pending}>
+          <button className="tm-btn-primary mt-6 w-full" disabled={(byCode ? !codeReady : !ready) || pending}>
             {pending ? "Signing you in…" : <>Continue <ArrowRightIcon className="h-5 w-5" /></>}
           </button>
 
           <button
             type="button"
-            onClick={onOpenTour}
+            onClick={() => setByCode((current) => !current)}
             className="mt-3 w-full text-center text-sm font-semibold text-slate-500 hover:text-brand-600"
+          >
+            {byCode ? "Sign in with your name instead" : "Have a saved-work code? Use it here"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenTour}
+            className="mt-2 w-full text-center text-sm font-semibold text-slate-500 hover:text-brand-600"
           >
             New here? Take the quick tour
           </button>
@@ -768,8 +859,8 @@ function ConsentScreen({
             </div>
           </dl>
           <p className="mt-2 text-xs text-slate-500">
-            Your work saves automatically. To continue later — even on another device — just sign in with the same
-            name and course.
+            Your work saves automatically. To continue later — even on another device — sign in with the same name
+            and course, or with this code (the sure way if someone else shares your name).
           </p>
         </>
       )}
@@ -854,8 +945,12 @@ function TaskList({
       <div className="grid gap-4 sm:grid-cols-2">
         {tasks.map((task) => {
           const isChat = task.condition === "thinkmate";
+          // Crossover integrity: activities unlock in order (the backend
+          // enforces this too — the A/B sequence is defined over task order).
+          const previous = tasks.find((other) => other.task_number === task.task_number - 1);
+          const locked = !task.completed && !!previous && !previous.completed;
           return (
-            <article key={task.id} className="tm-card flex flex-col p-5">
+            <article key={task.id} className={`tm-card flex flex-col p-5 ${locked ? "opacity-75" : ""}`}>
               <div className="flex items-center justify-between">
                 <span
                   className={`tm-chip ${
@@ -869,6 +964,8 @@ function TaskList({
                   <span className="tm-chip bg-emerald-50 text-emerald-700">
                     <CheckIcon className="h-3.5 w-3.5" /> Done
                   </span>
+                ) : locked ? (
+                  <span className="tm-chip bg-slate-100 text-slate-500">Locked</span>
                 ) : task.in_progress ? (
                   <span className="tm-chip bg-amber-50 text-amber-700">In progress</span>
                 ) : (
@@ -891,6 +988,10 @@ function TaskList({
                 <button className="tm-btn-primary mt-4 w-full" onClick={() => onReview(task)} disabled={pending}>
                   Review my work
                 </button>
+              ) : locked ? (
+                <button className="tm-btn-ghost mt-4 w-full" disabled>
+                  Unlocks after Activity {previous?.task_number}
+                </button>
               ) : (
                 <button className="tm-btn-primary mt-4 w-full" onClick={() => onStart(task)} disabled={pending}>
                   {pending
@@ -912,18 +1013,25 @@ function TaskList({
 }
 
 function WrapUp({
+  condition,
   onSave,
-  onSkip,
   pending,
   error
 }: {
+  condition: string;
   onSave: (answer: string) => void;
-  onSkip: () => void;
   pending: boolean;
   error: string;
 }) {
   const [answer, setAnswer] = useState("");
   const ready = answer.trim().length > 0;
+  // Both conditions write the SAME final answer in the SAME format — it is the
+  // primary artifact for blinded scoring, so its shape must not reveal which
+  // activity produced it.
+  const intro =
+    condition === "thinkmate"
+      ? "You've thought it through with ThinkMate. In your own words, what's your answer or decision now?"
+      : "You've worked through the steps. In your own words, what's your answer or decision now?";
   return (
     <section className="tm-card tm-rise mx-auto max-w-2xl p-6 sm:p-8">
       <span className="tm-chip bg-brand-50 text-brand-700">
@@ -931,8 +1039,7 @@ function WrapUp({
       </span>
       <h2 className="mt-3 text-2xl font-extrabold text-slate-900">Now, write your answer</h2>
       <p className="mt-2 text-slate-600">
-        You&rsquo;ve thought it through with ThinkMate. In your own words, what&rsquo;s your answer or
-        decision now? This is the part you keep — writing it yourself is how it sticks.
+        {intro} This is the part you keep — writing it yourself is how it sticks.
       </p>
 
       {error && (
@@ -945,7 +1052,7 @@ function WrapUp({
         className="tm-input mt-4 min-h-[7rem] resize-y"
         value={answer}
         onChange={(event) => setAnswer(event.target.value)}
-        placeholder="In one or two sentences: my answer is… because…"
+        placeholder="In two or three sentences: my answer is… because…"
         aria-label="Your answer"
         autoFocus
       />
@@ -954,10 +1061,10 @@ function WrapUp({
         <button className="tm-btn-primary" onClick={() => ready && onSave(answer)} disabled={!ready || pending}>
           {pending ? "Saving…" : <>Save &amp; finish <ArrowRightIcon className="h-5 w-5" /></>}
         </button>
-        <button className="tm-btn-ghost" onClick={onSkip} disabled={pending} type="button">
-          Finish without writing
-        </button>
       </div>
+      <p className="mt-3 text-xs text-slate-500">
+        A sentence or two is enough — this answer completes the activity.
+      </p>
     </section>
   );
 }
@@ -1039,11 +1146,13 @@ function Feedback({ studentId }: { studentId: string }) {
 function CompletionScreen({
   session,
   tasks,
-  onReturn
+  onReturn,
+  onSignOut
 }: {
   session: PilotSession | null;
   tasks: PilotTask[];
   onReturn: () => void;
+  onSignOut: () => void;
 }) {
   const remaining = tasks.filter((task) => !task.completed).length;
   const [summary, setSummary] = useState("");
@@ -1182,6 +1291,10 @@ function CompletionScreen({
         </div>
       )}
 
+      {/* The SUS survey is the study's promised usability measure — asked once,
+          after the student's FINAL activity, so it reflects the whole experience. */}
+      {remaining === 0 && session && <SusSurvey studentId={session.student_id} />}
+
       {session && <Feedback studentId={session.student_id} />}
 
       <div className="tm-card p-5 text-center">
@@ -1193,6 +1306,14 @@ function CompletionScreen({
         <button className="tm-btn-primary mt-3" onClick={onReturn}>
           {remaining > 0 ? "Back to my activities" : "View my activities"}
         </button>
+        {remaining === 0 && (
+          <>
+            <p className="mt-3 text-xs text-slate-500">On a shared or lab device? Sign out to keep your work private.</p>
+            <button className="tm-btn-ghost mt-1" onClick={onSignOut}>
+              Sign out
+            </button>
+          </>
+        )}
       </div>
     </section>
   );

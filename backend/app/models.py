@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -119,3 +119,42 @@ class Feedback(Base):
     rating: Mapped[int] = mapped_column(Integer)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class HintEvent(Base):
+    """One row per hint served. Research data for usage-pattern analysis (RQ3:
+    who needed help, how often, on which question) — never shown to raters."""
+
+    __tablename__ = "hint_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    hint: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    session: Mapped[PilotSession] = relationship()
+
+
+class SusResponse(Base):
+    """One System Usability Scale response per student, collected once after the
+    second activity. `total` is the standard 0-100 SUS score."""
+
+    __tablename__ = "sus_responses"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True, unique=True)
+    q1: Mapped[int] = mapped_column(Integer)
+    q2: Mapped[int] = mapped_column(Integer)
+    q3: Mapped[int] = mapped_column(Integer)
+    q4: Mapped[int] = mapped_column(Integer)
+    q5: Mapped[int] = mapped_column(Integer)
+    q6: Mapped[int] = mapped_column(Integer)
+    q7: Mapped[int] = mapped_column(Integer)
+    q8: Mapped[int] = mapped_column(Integer)
+    q9: Mapped[int] = mapped_column(Integer)
+    q10: Mapped[int] = mapped_column(Integer)
+    total: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    student: Mapped[Student] = relationship()
